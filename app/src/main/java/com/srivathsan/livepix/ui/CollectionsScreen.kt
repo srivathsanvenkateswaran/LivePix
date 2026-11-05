@@ -47,6 +47,9 @@ import androidx.compose.ui.unit.dp
 import com.srivathsan.livepix.LibraryState
 import com.srivathsan.livepix.data.Asset
 import com.srivathsan.livepix.ui.theme.Ios
+import com.srivathsan.livepix.ui.components.LargeTitleHeader
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import com.srivathsan.livepix.ui.theme.IosType
 
 @Composable
@@ -118,11 +121,8 @@ fun CollectionsScreen(
                 }
             }
         }
-        Box(
-            Modifier.fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(c.background, c.background.copy(alpha = 0f))))
-                .padding(top = top + 6.dp, start = 18.dp, bottom = 18.dp),
-        ) { Text("Collections", style = IosType.largeTitle, color = c.label) }
+        val collapsed by remember { derivedStateOf { listState.firstVisibleItemIndex > 1 || (listState.firstVisibleItemIndex == 1 && listState.firstVisibleItemScrollOffset > 40) } }
+        LargeTitleHeader("Collections", null, collapsed, top, hasButtons = false)
     }
 }
 

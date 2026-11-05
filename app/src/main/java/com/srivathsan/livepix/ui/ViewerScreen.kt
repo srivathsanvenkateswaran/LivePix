@@ -456,9 +456,10 @@ fun IosMenu(expanded: Boolean, onDismiss: () -> Unit, content: @Composable () ->
         expanded = expanded,
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(16.dp),
-        containerColor = if (c.isDark) Color(0xF02C2C2E) else Color(0xF5F7F7F7),
+        // Opaque with a modest shadow: translucent popups show their own shadow through them.
+        containerColor = if (c.isDark) Color(0xFF2C2C2E) else Color(0xFFF7F7F7),
         tonalElevation = 0.dp,
-        shadowElevation = 16.dp,
+        shadowElevation = 6.dp,
         modifier = Modifier.width(250.dp),
     ) { content() }
 }

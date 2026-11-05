@@ -33,6 +33,8 @@ import com.srivathsan.livepix.LibraryState
 import com.srivathsan.livepix.data.Asset
 import com.srivathsan.livepix.ui.components.GlassIconButton
 import com.srivathsan.livepix.ui.components.GlassTextButton
+import com.srivathsan.livepix.ui.components.LargeTitleHeader
+import androidx.compose.runtime.derivedStateOf
 import com.srivathsan.livepix.ui.theme.Ios
 import com.srivathsan.livepix.ui.theme.IosType
 import kotlin.math.ceil
@@ -73,20 +75,13 @@ fun TrashScreen(
                 }
             },
         )
-        Box(
-            Modifier.fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(c.background, c.background.copy(alpha = 0.9f), c.background.copy(alpha = 0f))))
-                .padding(top = top + 6.dp, start = 16.dp, end = 16.dp, bottom = 18.dp),
-        ) {
-            GlassIconButton(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", modifier = Modifier.align(Alignment.TopStart), onClick = onBack)
+        val collapsed by remember { derivedStateOf { grid.firstVisibleItemIndex > 0 || grid.firstVisibleItemScrollOffset > 40 } }
+        LargeTitleHeader("Recently Deleted", Format.count(items.size, "Item"), collapsed, top) {
+            GlassIconButton(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", modifier = Modifier.align(Alignment.CenterStart), onClick = onBack)
             if (items.isNotEmpty()) {
-                GlassTextButton(if (selection == null) "Select" else "Cancel", modifier = Modifier.align(Alignment.TopEnd)) {
+                GlassTextButton(if (selection == null) "Select" else "Cancel", modifier = Modifier.align(Alignment.CenterEnd)) {
                     selection = if (selection == null) emptySet() else null
                 }
-            }
-            Column(Modifier.padding(top = 50.dp)) {
-                Text("Recently Deleted", style = IosType.largeTitle, color = c.label)
-                Text(Format.count(items.size, "Item"), style = IosType.subheadline.copy(fontWeight = FontWeight.SemiBold), color = c.secondaryLabel)
             }
         }
         if (items.isNotEmpty()) {

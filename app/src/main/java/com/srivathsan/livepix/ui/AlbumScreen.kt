@@ -38,6 +38,8 @@ import com.srivathsan.livepix.LibraryState
 import com.srivathsan.livepix.data.Asset
 import com.srivathsan.livepix.ui.components.GlassIconButton
 import com.srivathsan.livepix.ui.components.GlassTextButton
+import com.srivathsan.livepix.ui.components.LargeTitleHeader
+import androidx.compose.runtime.derivedStateOf
 import com.srivathsan.livepix.ui.theme.Ios
 import com.srivathsan.livepix.ui.theme.IosType
 
@@ -84,13 +86,15 @@ fun AlbumScreen(
                 }
             },
         )
-        Box(
-            Modifier.fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(c.background, c.background.copy(alpha = 0.9f), c.background.copy(alpha = 0f))))
-                .padding(top = top + 6.dp, start = 16.dp, end = 16.dp, bottom = 18.dp),
+        val collapsed by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 40 } }
+        LargeTitleHeader(
+            title = source.title,
+            subtitle = if (assets.isNotEmpty()) Format.dateRange(assets.first().dateTaken, assets.last().dateTaken) else null,
+            collapsed = collapsed,
+            top = top,
         ) {
-            GlassIconButton(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", modifier = Modifier.align(Alignment.TopStart), onClick = onBack)
-            Row(Modifier.align(Alignment.TopEnd), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GlassIconButton(Icons.AutoMirrored.Filled.ArrowBackIos, "Back", modifier = Modifier.align(Alignment.CenterStart), onClick = onBack)
+            Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 selection?.let { s ->
                     val all = s.size == assets.size && assets.isNotEmpty()
                     GlassTextButton(if (all) "Deselect All" else "Select All") { selection = if (all) emptySet() else assets.map { it.key }.toSet() }
@@ -107,13 +111,6 @@ fun AlbumScreen(
                         }
                     }
                 }
-            }
-            Column(Modifier.padding(top = 50.dp)) {
-                Text(source.title, style = IosType.largeTitle, color = c.label)
-                if (assets.isNotEmpty()) Text(
-                    Format.dateRange(assets.first().dateTaken, assets.last().dateTaken),
-                    style = IosType.subheadline.copy(fontWeight = FontWeight.SemiBold), color = c.secondaryLabel,
-                )
             }
         }
         selection?.let { s ->

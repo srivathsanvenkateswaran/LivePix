@@ -132,7 +132,10 @@ fun PhotoContextMenu(asset: Asset, state: LibraryState, onSelect: () -> Unit, on
     val hidden = asset.key in state.hidden
     val scale = remember { Animatable(0.85f) }
     LaunchedEffect(Unit) { scale.animateTo(1f, spring(dampingRatio = 0.7f, stiffness = 500f)) }
-    val bmp = rememberThumbnail(asset, 1024.dp)
+    // The grid's thumbnail is already cached, so show it at once and sharpen when the large one lands.
+    val small = rememberThumbnail(asset, 300.dp)
+    val large = rememberThumbnail(asset, 1024.dp)
+    val bmp = large ?: small
     fun act(f: () -> Unit) { onDismiss(); f() }
     Dialog(onDismissRequest = onDismiss) {
         Column(
@@ -142,7 +145,7 @@ fun PhotoContextMenu(asset: Asset, state: LibraryState, onSelect: () -> Unit, on
             val ratio = if (asset.width > 0 && asset.height > 0) asset.width.toFloat() / asset.height else 0.75f
             Box(
                 Modifier.fillMaxWidth(if (ratio < 1f) 0.78f else 1f).height(if (ratio < 1f) 420.dp else 260.dp)
-                    .clip(RoundedCornerShape(16.dp)).background(c.fill)
+                    .clip(RoundedCornerShape(16.dp)).background(c.background)
                     .clickable { act { actions.open(asset, Source.Library) } },
             ) {
                 if (bmp != null) Image(bmp.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
