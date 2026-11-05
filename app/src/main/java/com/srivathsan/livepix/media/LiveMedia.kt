@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.util.Log
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -26,22 +27,27 @@ class LiveMedia(context: Context, uri: Uri) : AutoCloseable {
     }
 
     /** Evenly spaced frames, for the edit-screen filmstrip and Bounce playback. */
-    fun frames(count: Int, maxSide: Int, config: Bitmap.Config = Bitmap.Config.ARGB_8888): List<Pair<Long, Bitmap>> {
+    fun frames(
+        count: Int,
+        maxSide: Int,
+        config: Bitmap.Config = Bitmap.Config.ARGB_8888,
+        onFrame: (index: Int, Bitmap) -> Unit = { _, _ -> },
+    ): List<Pair<Long, Bitmap>> {
         if (count <= 0) return emptyList()
+        val started = System.nanoTime()
+        val (w, h) = scaledSize(maxSide)
+        val params = MediaMetadataRetriever.BitmapParams().apply { preferredConfig = config }
         val out = ArrayList<Pair<Long, Bitmap>>(count)
-        if (frameCount > 0) {
-            val params = MediaMetadataRetriever.BitmapParams().apply { preferredConfig = config }
-            for (k in 0 until count) {
-                val index = if (count == 1) 0 else ((frameCount - 1) * k.toFloat() / (count - 1)).roundToInt()
-                val frame = runCatching { retriever.getFrameAtIndex(index, params) }.getOrNull() ?: continue
-                out += (durationUs * index / max(1, frameCount - 1)) to scaleDown(frame, maxSide)
-            }
-        } else {
-            for (k in 0 until count) {
-                val t = durationUs * k / max(1, count - 1)
-                frameAt(t, maxSide)?.let { out += t to it }
-            }
+        for (k in 0 until count) {
+            val t = durationUs * k / max(1, count - 1)
+            // Scaled in native code, which is much cheaper than full-size frames scaled here.
+            val frame = runCatching {
+                retriever.getScaledFrameAtTime(t, MediaMetadataRetriever.OPTION_CLOSEST, w, h, params)
+            }.getOrNull() ?: continue
+            out += t to frame
+            onFrame(k, frame)
         }
+        Log.d(TAG, "frames($count, $maxSide): ${(System.nanoTime() - started) / 1_000_000} ms")
         return out
     }
 
@@ -119,4 +125,6 @@ class LiveMedia(context: Context, uri: Uri) : AutoCloseable {
     }
 
     override fun close() = retriever.release()
+
+    private companion object { const val TAG = "LiveMedia" }
 }

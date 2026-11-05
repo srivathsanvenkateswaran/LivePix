@@ -86,6 +86,7 @@ import kotlin.math.abs
 import kotlin.math.min
 
 private const val PREVIEW_SIDE = 1440
+private const val STRIP_FRAMES = 12
 
 /** iPhone's depth control stops. */
 private val F_STOPS = listOf(1.4f, 1.6f, 1.8f, 2f, 2.2f, 2.5f, 2.8f, 3.2f, 3.5f, 4f, 4.5f, 5f, 5.6f, 6.3f, 7.1f, 8f, 9f, 10f, 11f, 13f, 14f, 16f)
@@ -213,7 +214,12 @@ fun EditScreen(
                         asset = asset,
                         keyFrameUs = draft.keyFrameUs,
                         onScrub = { us, frame -> scrubUs = us; scrubFrame = frame },
-                        onMakeKey = { us -> draft = draft.copy(keyFrameUs = us, effect = if (draft.effect == LiveEffect.OFF) LiveEffect.LIVE else draft.effect); scrubUs = null },
+                        onMakeKey = { us ->
+                            // A new key photo should be visible, so effects that replace the still revert to Live.
+                            val effect = if (draft.effect == LiveEffect.OFF || draft.effect == LiveEffect.LONG_EXPOSURE) LiveEffect.LIVE else draft.effect
+                            draft = draft.copy(keyFrameUs = us, effect = effect)
+                            scrubUs = null
+                        },
                         scrubUs = scrubUs,
                         accent = ios.yellow,
                     )
@@ -316,12 +322,18 @@ private fun LivePanel(
 ) {
     val context = LocalContext.current
     val video = asset.liveVideo ?: return
-    val strip by produceState<Pair<Long, List<Bitmap>>?>(null, video) {
-        value = withContext(Dispatchers.IO) {
-            LiveMedia(context, video).use { m -> m.durationUs to m.frames(12, 200).map { it.second } }
+    // Frames appear one by one as they decode, so the strip fills in like Photos'.
+    var duration by remember(video) { mutableLongStateOf(0L) }
+    val frames = remember(video) { androidx.compose.runtime.mutableStateListOf<Bitmap?>() }
+    LaunchedEffect(video) {
+        withContext(Dispatchers.IO) {
+            LiveMedia(context, video).use { m ->
+                duration = m.durationUs
+                withContext(Dispatchers.Main) { frames.clear(); repeat(STRIP_FRAMES) { frames.add(null) } }
+                m.frames(STRIP_FRAMES, 200) { i, bmp -> frames[i] = bmp }
+            }
         }
     }
-    val duration = strip?.first ?: 0L
     // The original still sits mid-movie on iPhone; use that until a key frame is chosen.
     val keyUs = keyFrameUs ?: (duration / 2)
     var position by remember(duration) { mutableFloatStateOf(if (duration > 0) keyUs.toFloat() / duration else 0.5f) }
@@ -349,7 +361,7 @@ private fun LivePanel(
         BoxWithConstraints(Modifier.fillMaxWidth().height(64.dp)) {
             val width = constraints.maxWidth.toFloat()
             val frameW = 34.dp
-            val frames = strip?.second.orEmpty()
+
             // Key photo dot.
             if (duration > 0) {
                 val keyX = maxWidth * (keyUs.toFloat() / duration)
@@ -374,7 +386,8 @@ private fun LivePanel(
                     },
             ) {
                 frames.forEach { f ->
-                    Image(f.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.weight(1f).fillMaxSize())
+                    if (f != null) Image(f.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.weight(1f).fillMaxSize())
+                    else Box(Modifier.weight(1f).fillMaxSize().background(Color(0xFF2C2C2E)))
                 }
             }
             // Selector frame.
