@@ -1,0 +1,281 @@
+package com.srivathsan.livepix.ui
+
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material.icons.outlined.Collections
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.srivathsan.livepix.GalleryViewModel
+import com.srivathsan.livepix.data.Asset
+import com.srivathsan.livepix.media.Exporter
+import com.srivathsan.livepix.media.StillRenderer
+import com.srivathsan.livepix.ui.components.FloatingTabBar
+import com.srivathsan.livepix.ui.components.TabItem
+import com.srivathsan.livepix.ui.theme.Ios
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+
+sealed interface Route {
+    data object Home : Route
+    data class Collection(val source: Source) : Route
+    data class Viewer(val source: Source, val startKey: String) : Route
+    data class Edit(val key: String, val source: Source) : Route
+}
+
+private enum class Tab { LIBRARY, COLLECTIONS, SEARCH }
+
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val c = Ios.colors
+
+    val stack = remember { mutableStateListOf<Route>(Route.Home) }
+    var tab by rememberSaveable { mutableStateOf(Tab.LIBRARY) }
+    var libraryMode by rememberSaveable { mutableStateOf(LibraryMode.ALL) }
+    var columns by rememberSaveable { mutableIntStateOf(3) }
+    var selection by remember { mutableStateOf<Set<String>?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var busy by remember { mutableStateOf<String?>(null) }
+
+    val libraryGrid = rememberLazyGridState()
+    val years = rememberLazyListState()
+    val months = rememberLazyListState()
+    val collectionsList = rememberLazyListState()
+    val albumGrids = remember { HashMap<Source, LazyGridState>() }
+
+    // Photos opens at the newest item, at the bottom of the grid.
+    var scrolledToEnd by remember { mutableStateOf(false) }
+    LaunchedEffect(state.assets.size) {
+        if (!scrolledToEnd && state.assets.isNotEmpty()) {
+            libraryGrid.scrollToItem(state.assets.size)
+            scrolledToEnd = true
+        }
+    }
+    LaunchedEffect(externalUri, state.loaded) {
+        if (externalUri != null && state.loaded) {
+            val id = externalUri.lastPathSegment?.toLongOrNull()
+            val match = state.assets.firstOrNull { it.uri == externalUri || (id != null && it.id == id && externalUri.authority == "media") }
+            if (match != null) stack.add(Route.Viewer(Source.Library, match.key))
+            else Toast.makeText(context, "Open this photo from LivePix's library to use Live and Portrait.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
+        selection = null
+        vm.refresh()
+    }
+
+    fun runExport(label: String, block: suspend () -> Unit) {
+        busy = label
+        scope.launch {
+            runCatching { block() }.onFailure {
+                Toast.makeText(context, "Couldn't finish: ${it.message}", Toast.LENGTH_LONG).show()
+            }
+            busy = null
+        }
+    }
+
+    fun share(assets: List<Asset>) = runExport("Preparing…") {
+        val files = withContext(Dispatchers.IO) {
+            assets.map { a ->
+                val edit = state.editOf(a)
+                val traits = state.traitsOf(a)
+                if (!a.isVideo && (StillRenderer.needsRender(a, traits, edit) || a.isHeif)) Exporter.renderJpeg(context, a, traits, edit)
+                else Exporter.original(context, a.uri, a.name)
+            }
+        }
+        val mime = when {
+            assets.all { it.isVideo } -> "video/*"
+            assets.any { it.isVideo } -> "*/*"
+            else -> "image/jpeg"
+        }
+        context.startActivity(Exporter.shareIntent(context, files, mime))
+    }
+
+    fun delete(assets: List<Asset>) {
+        val pi = vm.deleteRequest(assets)
+        deleteLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+    }
+
+    val viewerActions = { source: Source ->
+        ViewerActions(
+            onBack = { stack.removeLastOrNull() },
+            onEdit = { a -> stack.add(Route.Edit(a.key, source)) },
+            onEditChange = { a, t -> vm.updateEdit(a, t) },
+            onFavorite = vm::toggleFavorite,
+            onShare = { share(listOf(it)) },
+            onDelete = { delete(listOf(it)) },
+            onSaveCopy = { a ->
+                runExport("Saving…") {
+                    withContext(Dispatchers.IO) {
+                        val f = Exporter.renderJpeg(context, a, state.traitsOf(a), state.editOf(a))
+                        Exporter.saveToGallery(context, f, "image/jpeg", a.dateTaken)
+                    }
+                    Toast.makeText(context, "Saved to Pictures/LivePix", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onMotionPhoto = { a ->
+                runExport("Creating Motion Photo…") {
+                    val f: File = withContext(Dispatchers.IO) {
+                        Exporter.motionPhoto(context, a, state.traitsOf(a), state.editOf(a)).also {
+                            Exporter.saveToGallery(context, it, "image/jpeg", a.dateTaken)
+                        }
+                    }
+                    Toast.makeText(context, "Saved ${f.name} to Pictures/LivePix", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onShareOriginal = { a ->
+                runExport("Preparing…") {
+                    val files = withContext(Dispatchers.IO) {
+                        listOfNotNull(
+                            Exporter.original(context, a.uri, a.name),
+                            a.liveVideo?.let { Exporter.original(context, it, a.baseName.uppercase() + ".MOV") },
+                        )
+                    }
+                    context.startActivity(Exporter.shareIntent(context, files, "*/*"))
+                }
+            },
+        )
+    }
+
+    BackHandler(stack.size > 1 || selection != null || tab != Tab.LIBRARY) {
+        when {
+            selection != null && stack.size == 1 -> selection = null
+            stack.size > 1 -> stack.removeLastOrNull()
+            else -> tab = Tab.LIBRARY
+        }
+    }
+
+    SharedTransitionLayout(Modifier.fillMaxSize().background(c.background)) {
+        AnimatedContent(
+            targetState = stack.last(),
+            transitionSpec = {
+                val forward = targetState !is Route.Home && (initialState is Route.Home || initialState is Route.Collection && targetState !is Route.Collection)
+                when {
+                    targetState is Route.Collection && initialState is Route.Home ->
+                        slideInHorizontally(tween(320)) { it } togetherWith slideOutHorizontally(tween(320)) { -it / 4 }
+                    initialState is Route.Collection && targetState is Route.Home ->
+                        slideInHorizontally(tween(320)) { -it / 4 } togetherWith slideOutHorizontally(tween(320)) { it }
+                    else -> fadeIn(tween(if (forward) 260 else 220)) togetherWith fadeOut(tween(220))
+                }
+            },
+            label = "route",
+        ) { route ->
+            CompositionLocalProvider(LocalShared provides SharedScopes(this@SharedTransitionLayout, this@AnimatedContent)) {
+                when (route) {
+                    Route.Home -> Box(Modifier.fillMaxSize()) {
+                        when (tab) {
+                            Tab.LIBRARY -> LibraryScreen(
+                                state = state, gridState = libraryGrid, yearsState = years, monthsState = months,
+                                columns = columns, onColumnsChange = { columns = it },
+                                mode = libraryMode, onModeChange = { libraryMode = it },
+                                selection = selection, onSelectionChange = { selection = it },
+                                onOpen = { stack.add(Route.Viewer(Source.Library, it.key)) },
+                                onShare = ::share, onDelete = ::delete,
+                            )
+                            Tab.COLLECTIONS -> CollectionsScreen(state, collectionsList) { stack.add(Route.Collection(it)) }
+                            Tab.SEARCH -> SearchScreen(state, query, { query = it }) { a, s -> stack.add(Route.Viewer(s, a.key)) }
+                        }
+                        if (selection == null) {
+                            val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                            FloatingTabBar(
+                                tabs = listOf(
+                                    TabItem("Library", Icons.Outlined.PhotoLibrary, Icons.Filled.PhotoLibrary),
+                                    TabItem("Collections", Icons.Outlined.Collections, Icons.Filled.Collections),
+                                ),
+                                selected = if (tab == Tab.COLLECTIONS) 1 else 0,
+                                onSelect = { i ->
+                                    val next = if (i == 0) Tab.LIBRARY else Tab.COLLECTIONS
+                                    if (next == tab && next == Tab.LIBRARY) scope.launch { libraryGrid.animateScrollToItem(state.assets.size) }
+                                    tab = next
+                                },
+                                searchIcon = Icons.Outlined.Search,
+                                searchSelected = tab == Tab.SEARCH,
+                                onSearch = { tab = Tab.SEARCH },
+                                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottom + 12.dp),
+                            )
+                        }
+                    }
+                    is Route.Collection -> AlbumScreen(
+                        source = route.source, state = state,
+                        gridState = albumGrids.getOrPut(route.source) { LazyGridState() },
+                        onBack = { stack.removeLastOrNull() },
+                        onOpen = { stack.add(Route.Viewer(route.source, it.key)) },
+                        onShare = ::share, onDelete = ::delete,
+                    )
+                    is Route.Viewer -> {
+                        val assets = remember(state, route.source) { route.source.assets(state) }
+                        ViewerScreen(
+                            assets = assets, startKey = route.startKey, state = state,
+                            actions = viewerActions(route.source),
+                            onPageChange = { a ->
+                                // Keep the grid underneath on the photo being viewed, so closing zooms back to it.
+                                val i = state.assets.indexOf(a)
+                                if (route.source == Source.Library && i >= 0) scope.launch { libraryGrid.scrollToItem(i) }
+                                val idx = stack.indexOf(route)
+                                if (idx >= 0) stack[idx] = route.copy(startKey = a.key)
+                            },
+                        )
+                    }
+                    is Route.Edit -> {
+                        val asset = state.assets.firstOrNull { it.key == route.key }
+                        if (asset == null) LaunchedEffect(Unit) { stack.removeLastOrNull() }
+                        else EditScreen(
+                            asset = asset, traits = state.traitsOf(asset), initial = state.editOf(asset),
+                            onCancel = { stack.removeLastOrNull() },
+                            onDone = { e -> vm.updateEdit(asset) { e }; stack.removeLastOrNull() },
+                        )
+                    }
+                }
+            }
+        }
+        busy?.let { BusyOverlay(it) }
+    }
+}
