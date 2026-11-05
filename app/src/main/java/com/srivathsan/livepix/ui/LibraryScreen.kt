@@ -233,7 +233,7 @@ private fun PeriodCards(
     LazyColumn(state = listState, contentPadding = padding, verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxSize()) {
         items(groups, key = { title(it) }) { group ->
             val cover = group.firstOrNull { !it.isVideo } ?: group.first()
-            val bmp = rememberThumbnail(cover, 512.dp)
+            val bmp = rememberThumbnail(cover, 1024.dp)
             Box(
                 Modifier.fillMaxWidth().height(if (tall) 300.dp else 220.dp).clip(RoundedCornerShape(18.dp))
                     .background(Ios.colors.fill).clickable { onOpen(group) },

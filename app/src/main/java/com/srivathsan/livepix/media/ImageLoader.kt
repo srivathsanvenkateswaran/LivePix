@@ -2,6 +2,7 @@ package com.srivathsan.livepix.media
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.util.Log
@@ -35,7 +36,7 @@ object ImageLoader {
             (runCatching { context.contentResolver.loadThumbnail(uri, Size(sizePx, sizePx), null) }
                 .onFailure { Log.w(TAG, "thumbnail $uri: $it") }.getOrNull()
                 ?: videoFrame(context, uri, sizePx)
-                ?: heifFallback(context, uri, sizePx))?.also { cache.put(key, it) }
+                ?: diskThumbnail(context, uri, sizePx))?.also { cache.put(key, it) }
         }
     }
 
@@ -55,6 +56,19 @@ object ImageLoader {
 
     fun decode(context: Context, uri: Uri, maxSide: Int, software: Boolean): Bitmap? =
         platformDecode(context, uri, maxSide, software) ?: heifFallback(context, uri, maxSide)
+
+    /**
+     * Fallback thumbnails can mean decoding a 48-tile HEIC grid in software, so they are kept on
+     * disk and only made once per file.
+     */
+    private fun diskThumbnail(context: Context, uri: Uri, sizePx: Int): Bitmap? {
+        val dir = java.io.File(context.cacheDir, "thumbs").apply { mkdirs() }
+        val file = java.io.File(dir, "${uri.lastPathSegment}_$sizePx.jpg")
+        if (file.exists()) BitmapFactory.decodeFile(file.path)?.let { return it }
+        val bmp = heifFallback(context, uri, sizePx) ?: return null
+        runCatching { file.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 88, it) } }
+        return bmp
+    }
 
     private fun heifFallback(context: Context, uri: Uri, maxSide: Int): Bitmap? = runCatching {
         context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->

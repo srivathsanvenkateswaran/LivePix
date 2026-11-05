@@ -43,7 +43,14 @@ import com.srivathsan.livepix.ui.theme.IosType
 @Composable
 fun rememberThumbnail(asset: Asset, sizeDp: Dp): Bitmap? {
     val context = LocalContext.current
-    val px = with(LocalDensity.current) { sizeDp.roundToPx() }.coerceIn(96, 512).let { if (it > 256) 512 else 256 }
+    // A few fixed sizes so cells, cards and the filmstrip share cache entries.
+    val px = with(LocalDensity.current) { sizeDp.roundToPx() }.let {
+        when {
+            it <= 256 -> 256
+            it <= 512 -> 512
+            else -> 1024
+        }
+    }
     var bmp by remember(asset.uri, px) { mutableStateOf(ImageLoader.peek("t:${asset.uri}:$px")) }
     LaunchedEffect(asset.uri, px) {
         if (bmp == null) bmp = ImageLoader.thumbnail(context, asset.uri, px)

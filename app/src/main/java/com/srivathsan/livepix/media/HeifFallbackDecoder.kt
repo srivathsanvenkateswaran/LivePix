@@ -17,7 +17,8 @@ object HeifFallbackDecoder {
         val primary = heif.primary ?: return null
         val thumb = heif.primaryThumbnail
         val bitmap = when {
-            thumb != null && max(thumb.width, thumb.height) >= maxSide -> decodeItem(source, heif, thumb)
+            // A slightly small preview upscales fine in a grid cell and is far cheaper than the grid.
+            thumb != null && max(thumb.width, thumb.height) >= maxSide * 0.6f -> decodeItem(source, heif, thumb)
             primary.type == "grid" -> decodeGrid(source, heif, primary)
             primary.type == "hvc1" -> decodeItem(source, heif, primary)
             else -> null
