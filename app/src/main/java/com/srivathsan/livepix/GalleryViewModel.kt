@@ -13,6 +13,8 @@ import com.srivathsan.livepix.data.AssetEdit
 import com.srivathsan.livepix.data.EditStore
 import com.srivathsan.livepix.data.MediaRepository
 import com.srivathsan.livepix.data.TraitScanner
+import com.srivathsan.livepix.data.LibraryStore
+import com.srivathsan.livepix.data.UserAlbum
 import com.srivathsan.livepix.data.Traits
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -25,12 +27,19 @@ import kotlinx.coroutines.withContext
 
 data class LibraryState(
     val loaded: Boolean = false,
-    /** Oldest first, like the Photos library grid. */
-    val assets: List<Asset> = emptyList(),
+    /** Everything on the device, oldest first, including hidden items. */
+    val allAssets: List<Asset> = emptyList(),
     val traits: Map<String, Traits> = emptyMap(),
     val edits: Map<String, AssetEdit> = emptyMap(),
     val scanning: Boolean = false,
+    val albums: List<UserAlbum> = emptyList(),
+    val hidden: Set<String> = emptySet(),
+    /** Recently Deleted, from Android's trash. */
+    val trashed: List<Asset> = emptyList(),
 ) {
+    /** The library as shown: everything except hidden items. */
+    val assets: List<Asset> by lazy { if (hidden.isEmpty()) allAssets else allAssets.filter { it.key !in hidden } }
+
     fun traitsOf(a: Asset): Traits? = traits[a.versionKey]
     fun editOf(a: Asset): AssetEdit = edits[a.key] ?: AssetEdit()
 }
@@ -38,7 +47,10 @@ data class LibraryState(
 class GalleryViewModel(app: Application) : AndroidViewModel(app) {
     private val editStore = EditStore(app)
     private val scanner = TraitScanner(app)
-    private val _state = MutableStateFlow(LibraryState(edits = editStore.all()))
+    private val library = LibraryStore(app)
+    private val _state = MutableStateFlow(
+        LibraryState(edits = editStore.all(), albums = library.albums, hidden = library.hidden),
+    )
     val state: StateFlow<LibraryState> = _state.asStateFlow()
 
     private var loadJob: Job? = null
@@ -55,8 +67,11 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
         loadJob = viewModelScope.launch {
             val ctx = getApplication<Application>()
             val raw = withContext(Dispatchers.IO) { MediaRepository.load(ctx) }
+            val trashed = withContext(Dispatchers.IO) { MediaRepository.loadTrashed(ctx) }
             val known = scanner.cached()
-            _state.update { it.copy(loaded = true, assets = MediaRepository.pairByContent(raw, known), traits = known) }
+            _state.update {
+                it.copy(loaded = true, allAssets = MediaRepository.pairByContent(raw, known), traits = known, trashed = trashed)
+            }
 
             // Scan what needs scanning: HEIC/JPEG stills for depth + content id, short movies for content id.
             val todo = raw.filter { (it.isHeif || it.mime == "image/jpeg" || MediaRepository.isLiveCandidate(it)) && it.versionKey !in known }
@@ -68,7 +83,7 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
                     found[a.versionKey] = scanner.scan(a)
                     if (i % 40 == 39 || i == todo.lastIndex) {
                         val snapshot = HashMap(found)
-                        _state.update { it.copy(traits = snapshot, assets = MediaRepository.pairByContent(raw, snapshot)) }
+                        _state.update { it.copy(traits = snapshot, allAssets = MediaRepository.pairByContent(raw, snapshot)) }
                     }
                 }
                 scanner.persist()
@@ -85,11 +100,35 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
 
     fun toggleFavorite(asset: Asset) = updateEdit(asset) { it.copy(favorite = !it.favorite) }
 
-    /** System confirmation dialog for deleting the asset (and its Live movie). */
-    fun deleteRequest(assets: List<Asset>): PendingIntent {
-        val uris = assets.flatMap { listOfNotNull(it.uri, it.liveVideo) }
-        return MediaStore.createDeleteRequest(getApplication<Application>().contentResolver, uris)
+    /** Favourites all of [assets], or unfavourites them if they already all are. */
+    fun setFavorite(assets: List<Asset>) {
+        val makeFavorite = !assets.all { _state.value.editOf(it).favorite }
+        assets.forEach { a -> updateEdit(a) { it.copy(favorite = makeFavorite) } }
     }
+
+    fun createAlbum(name: String, assets: List<Asset> = emptyList()): UserAlbum =
+        library.createAlbum(name, assets.map { it.key }).also { syncLibrary() }
+
+    fun addToAlbum(albumId: String, assets: List<Asset>) { library.addToAlbum(albumId, assets.map { it.key }); syncLibrary() }
+    fun removeFromAlbum(albumId: String, assets: List<Asset>) { library.removeFromAlbum(albumId, assets.map { it.key }); syncLibrary() }
+    fun renameAlbum(albumId: String, name: String) { library.renameAlbum(albumId, name); syncLibrary() }
+    fun deleteAlbum(albumId: String) { library.deleteAlbum(albumId); syncLibrary() }
+    fun setHidden(assets: List<Asset>, hide: Boolean) { library.setHidden(assets.map { it.key }, hide); syncLibrary() }
+
+    private fun syncLibrary() = _state.update { it.copy(albums = library.albums, hidden = library.hidden) }
+
+    private fun uris(assets: List<Asset>) = assets.flatMap { listOfNotNull(it.uri, it.liveVideo) }
+
+    /** Moves items to Recently Deleted (Android's trash, kept for 30 days). Shows the system prompt. */
+    fun trashRequest(assets: List<Asset>): PendingIntent =
+        MediaStore.createTrashRequest(getApplication<Application>().contentResolver, uris(assets), true)
+
+    fun restoreRequest(assets: List<Asset>): PendingIntent =
+        MediaStore.createTrashRequest(getApplication<Application>().contentResolver, uris(assets), false)
+
+    /** Permanent deletion, for Recently Deleted. */
+    fun deleteRequest(assets: List<Asset>): PendingIntent =
+        MediaStore.createDeleteRequest(getApplication<Application>().contentResolver, uris(assets))
 
     override fun onCleared() {
         getApplication<Application>().contentResolver.unregisterContentObserver(observer)

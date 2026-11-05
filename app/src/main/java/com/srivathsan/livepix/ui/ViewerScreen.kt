@@ -46,6 +46,9 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -290,7 +293,13 @@ private fun ViewerChrome(
             Box(Modifier.align(Alignment.CenterEnd)) {
                 var menu by remember { mutableStateOf(false) }
                 GlassIconButton(Icons.Outlined.MoreHoriz, "More") { menu = true }
+                val shared = LocalAssetActions.current
+                val hidden = asset.key in state.hidden
                 IosMenu(menu, onDismiss = { menu = false }) {
+                    MenuRow("Add to Album", icon = Icons.Outlined.PhotoLibrary) { menu = false; shared.addToAlbum(listOf(asset)) }
+                    MenuRow(if (hidden) "Unhide" else "Hide", icon = if (hidden) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff) {
+                        menu = false; shared.setHidden(listOf(asset), !hidden)
+                    }
                     MenuRow("Save a Copy") { menu = false; actions.onSaveCopy(asset) }
                     if (asset.liveVideo != null) MenuRow("Export as Motion Photo") { menu = false; actions.onMotionPhoto(asset) }
                     MenuRow("Share Original File") { menu = false; actions.onShareOriginal(asset) }
@@ -455,12 +464,13 @@ fun IosMenu(expanded: Boolean, onDismiss: () -> Unit, content: @Composable () ->
 }
 
 @Composable
-fun MenuRow(text: String, checked: Boolean = false, color: Color = Ios.colors.label, onClick: () -> Unit) {
+fun MenuRow(text: String, checked: Boolean = false, color: Color = Ios.colors.label, icon: ImageVector? = null, onClick: () -> Unit) {
     DropdownMenuItem(
         text = { Text(text, style = IosType.body, color = color) },
         leadingIcon = {
             Box(Modifier.width(18.dp)) { if (checked) Icon(Icons.Filled.Check, null, tint = color, modifier = Modifier.size(18.dp)) }
         },
+        trailingIcon = icon?.let { { Icon(it, null, tint = color, modifier = Modifier.size(20.dp)) } },
         onClick = onClick,
     )
 }

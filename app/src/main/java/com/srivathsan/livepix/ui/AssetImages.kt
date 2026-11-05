@@ -65,6 +65,7 @@ fun AssetThumbnail(
     favorite: Boolean,
     modifier: Modifier = Modifier,
     selected: Boolean? = null,
+    label: String? = null,
     imageModifier: Modifier = Modifier,
 ) {
     val c = Ios.colors
@@ -78,6 +79,12 @@ fun AssetThumbnail(
             )
         }
         ThumbBadges(asset, favorite, cellSize)
+        if (label != null) {
+            Text(
+                label, style = IosType.caption.copy(fontWeight = FontWeight.SemiBold, shadow = badgeShadow), color = Color.White,
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 5.dp, bottom = 3.dp),
+            )
+        }
         if (selected != null) SelectionMark(selected)
     }
 }

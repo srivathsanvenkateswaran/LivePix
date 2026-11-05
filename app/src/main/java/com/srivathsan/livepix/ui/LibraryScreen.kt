@@ -76,8 +76,6 @@ fun LibraryScreen(
     selection: Set<String>?,
     onSelectionChange: (Set<String>?) -> Unit,
     onOpen: (Asset) -> Unit,
-    onShare: (List<Asset>) -> Unit,
-    onDelete: (List<Asset>) -> Unit,
 ) {
     val c = Ios.colors
     val assets = state.assets
@@ -90,9 +88,7 @@ fun LibraryScreen(
             when (m) {
                 LibraryMode.ALL -> AssetGrid(
                     assets = assets, state = state, gridState = gridState, columns = columns,
-                    onColumnsChange = onColumnsChange, selection = selection,
-                    onToggleSelect = { a -> selection?.let { s -> onSelectionChange(if (a.key in s) s - a.key else s + a.key) } },
-                    onLongPress = { a -> onSelectionChange((selection ?: emptySet()) + a.key) },
+                    onColumnsChange = onColumnsChange, selection = selection, onSelectionChange = onSelectionChange,
                     onOpen = onOpen,
                     contentPadding = PaddingValues(top = top + 96.dp, bottom = bottom + TAB_BAR_SPACE + 64.dp),
                     footer = {
@@ -145,9 +141,8 @@ fun LibraryScreen(
         }
         if (selection != null) {
             SelectionBar(
-                count = selection.size,
-                onShare = { onShare(assets.filter { it.key in selection }) },
-                onDelete = { onDelete(assets.filter { it.key in selection }) },
+                selected = assets.filter { it.key in selection },
+                state = state,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottom + 16.dp, start = 16.dp, end = 16.dp),
             )
         }
@@ -183,13 +178,17 @@ private fun LibraryHeader(
             .padding(top = top + 6.dp, start = 18.dp, end = 16.dp, bottom = 22.dp),
     ) {
         Column(Modifier.align(Alignment.CenterStart)) {
-            Text(
-                if (selection != null) (if (selection.isEmpty()) "Select Items" else Format.count(selection.size, "Item") + " Selected") else "Library",
-                style = IosType.largeTitle, color = c.label,
-            )
+            // Like Photos, the count lives in the bottom bar; the title stays put.
+            Text("Library", style = IosType.largeTitle, color = c.label)
             Text(subtitle, style = IosType.subheadline.copy(fontWeight = FontWeight.SemiBold), color = c.secondaryLabel)
         }
         Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (selection != null) {
+                val all = selection.size == assets.size
+                GlassTextButton(if (all) "Deselect All" else "Select All") {
+                    onSelectionChange(if (all) emptySet() else assets.map { it.key }.toSet())
+                }
+            }
             if (mode == LibraryMode.ALL) {
                 GlassTextButton(if (selection == null) "Select" else "Cancel") {
                     onSelectionChange(if (selection == null) emptySet() else null)
@@ -247,20 +246,5 @@ private fun PeriodCards(
                 }
             }
         }
-    }
-}
-
-@Composable
-fun SelectionBar(count: Int, onShare: () -> Unit, onDelete: () -> Unit, modifier: Modifier = Modifier) {
-    val c = Ios.colors
-    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        GlassIconButton(Icons.Outlined.IosShare, "Share", tint = if (count > 0) c.blue else c.tertiaryLabel) { if (count > 0) onShare() }
-        Spacer(Modifier.weight(1f))
-        Text(
-            if (count == 0) "Select Items" else Format.count(count, "Item") + " Selected",
-            style = IosType.headline.copy(fontSize = 15.sp), color = c.label,
-        )
-        Spacer(Modifier.weight(1f))
-        GlassIconButton(Icons.Outlined.Delete, "Delete", tint = if (count > 0) c.red else c.tertiaryLabel) { if (count > 0) onDelete() }
     }
 }

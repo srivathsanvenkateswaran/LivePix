@@ -50,6 +50,7 @@ class TraitScanner(private val context: Context) {
                         contentId = exif?.let(AppleMetadata::contentIdFromMakerNote),
                         make = exif?.getAttribute(ExifInterface.TAG_MAKE),
                         model = exif?.getAttribute(ExifInterface.TAG_MODEL),
+                        front = exif?.getAttribute(ExifInterface.TAG_LENS_MODEL)?.contains("front", ignoreCase = true) == true,
                         motionOffset = motion?.offset,
                         motionLength = motion?.length,
                         presentationUs = if (motion != null) MotionPhoto.presentationUs(src) else null,
@@ -66,6 +67,7 @@ class TraitScanner(private val context: Context) {
             json.put(k, JSONObject().apply {
                 put("d", t.hasDepth); put("m", t.hasMatte)
                 t.contentId?.let { put("c", it) }; t.make?.let { put("mk", it) }; t.model?.let { put("md", it) }
+                if (t.front) put("f", true)
                 t.motionOffset?.let { put("mo", it) }; t.motionLength?.let { put("ml", it) }; t.presentationUs?.let { put("pt", it) }
             })
         }
@@ -79,7 +81,7 @@ class TraitScanner(private val context: Context) {
             val o = json.getJSONObject(k)
             out[k] = Traits(
                 o.optBoolean("d"), o.optBoolean("m"), o.optString("c").ifEmpty { null },
-                o.optString("mk").ifEmpty { null }, o.optString("md").ifEmpty { null },
+                o.optString("mk").ifEmpty { null }, o.optString("md").ifEmpty { null }, o.optBoolean("f"),
                 if (o.has("mo")) o.getLong("mo") else null, if (o.has("ml")) o.getLong("ml") else null,
                 if (o.has("pt")) o.getLong("pt") else null,
             )
@@ -89,6 +91,6 @@ class TraitScanner(private val context: Context) {
 
     private companion object {
         const val TAG = "TraitScanner"
-        const val VERSION = 3
+        const val VERSION = 4
     }
 }

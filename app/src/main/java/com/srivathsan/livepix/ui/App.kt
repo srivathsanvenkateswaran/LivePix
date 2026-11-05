@@ -64,6 +64,7 @@ sealed interface Route {
     data class Collection(val source: Source) : Route
     data class Viewer(val source: Source, val startKey: String) : Route
     data class Edit(val key: String, val source: Source) : Route
+    data object Trash : Route
 }
 
 private enum class Tab { LIBRARY, COLLECTIONS, SEARCH }
@@ -83,6 +84,19 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
     var selection by remember { mutableStateOf<Set<String>?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf<String?>(null) }
+    // Pending "Add to Album" / "New Album" flows, holding the photos they apply to.
+    var addingToAlbum by remember { mutableStateOf<List<Asset>?>(null) }
+    var newAlbumFor by remember { mutableStateOf<List<Asset>?>(null) }
+    // Hidden and Recently Deleted unlock once per visit to the app.
+    var unlocked by remember { mutableStateOf(false) }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP) unlocked = false
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
 
     val libraryGrid = rememberLazyGridState()
     val years = rememberLazyListState()
@@ -139,10 +153,27 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
         context.startActivity(Exporter.shareIntent(context, files, mime))
     }
 
-    fun delete(assets: List<Asset>) {
-        val pi = vm.deleteRequest(assets)
-        deleteLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
-    }
+    fun launch(pi: android.app.PendingIntent) = deleteLauncher.launch(IntentSenderRequest.Builder(pi.intentSender).build())
+
+    /** Delete in Photos means "move to Recently Deleted". */
+    fun trash(assets: List<Asset>) = launch(vm.trashRequest(assets))
+
+    val assetActions = AssetActions(
+        share = ::share,
+        toggleFavorite = vm::setFavorite,
+        addToAlbum = { addingToAlbum = it },
+        setHidden = { list, hide ->
+            vm.setHidden(list, hide)
+            selection = null
+            Toast.makeText(
+                context,
+                if (hide) "${Format.count(list.size, "item")} hidden. Find them in Collections → Hidden." else "${Format.count(list.size, "item")} unhidden",
+                Toast.LENGTH_SHORT,
+            ).show()
+        },
+        trash = ::trash,
+        open = { a, s -> stack.add(Route.Viewer(s, a.key)) },
+    )
 
     val viewerActions = { source: Source ->
         ViewerActions(
@@ -151,7 +182,7 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
             onEditChange = { a, t -> vm.updateEdit(a, t) },
             onFavorite = vm::toggleFavorite,
             onShare = { share(listOf(it)) },
-            onDelete = { delete(listOf(it)) },
+            onDelete = { trash(listOf(it)) },
             onSaveCopy = { a ->
                 runExport("Saving…") {
                     withContext(Dispatchers.IO) {
@@ -208,7 +239,10 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
             },
             label = "route",
         ) { route ->
-            CompositionLocalProvider(LocalShared provides SharedScopes(this@SharedTransitionLayout, this@AnimatedContent)) {
+            CompositionLocalProvider(
+                LocalShared provides SharedScopes(this@SharedTransitionLayout, this@AnimatedContent),
+                LocalAssetActions provides assetActions,
+            ) {
                 when (route) {
                     Route.Home -> Box(Modifier.fillMaxSize()) {
                         when (tab) {
@@ -218,9 +252,15 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
                                 mode = libraryMode, onModeChange = { libraryMode = it },
                                 selection = selection, onSelectionChange = { selection = it },
                                 onOpen = { stack.add(Route.Viewer(Source.Library, it.key)) },
-                                onShare = ::share, onDelete = ::delete,
                             )
-                            Tab.COLLECTIONS -> CollectionsScreen(state, collectionsList) { stack.add(Route.Collection(it)) }
+                            Tab.COLLECTIONS -> CollectionsScreen(
+                                state, collectionsList,
+                                onOpenSource = { stack.add(Route.Collection(it)) },
+                                onNewAlbum = { newAlbumFor = emptyList() },
+                                onUtility = { u ->
+                                    stack.add(if (u == Utility.RECENTLY_DELETED) Route.Trash else Route.Collection(Source.Hidden))
+                                },
+                            )
                             Tab.SEARCH -> SearchScreen(state, query, { query = it }) { a, s -> stack.add(Route.Viewer(s, a.key)) }
                         }
                         if (selection == null) {
@@ -243,13 +283,33 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
                             )
                         }
                     }
-                    is Route.Collection -> AlbumScreen(
-                        source = route.source, state = state,
-                        gridState = albumGrids.getOrPut(route.source) { LazyGridState() },
-                        onBack = { stack.removeLastOrNull() },
-                        onOpen = { stack.add(Route.Viewer(route.source, it.key)) },
-                        onShare = ::share, onDelete = ::delete,
-                    )
+                    is Route.Collection -> {
+                        val source = route.source
+                        val content = @Composable {
+                            AlbumScreen(
+                                source = source, state = state,
+                                gridState = albumGrids.getOrPut(source) { LazyGridState() },
+                                onBack = { stack.removeLastOrNull() },
+                                onOpen = { stack.add(Route.Viewer(source, it.key)) },
+                                albumActions = (source as? Source.UserAlbumSource)?.let { s ->
+                                    UserAlbumActions(
+                                        rename = { name -> vm.renameAlbum(s.id, name); stack[stack.lastIndex] = Route.Collection(s.copy(title = name)) },
+                                        delete = { vm.deleteAlbum(s.id); stack.removeLastOrNull() },
+                                        remove = { vm.removeFromAlbum(s.id, it) },
+                                    )
+                                },
+                            )
+                        }
+                        if (source == Source.Hidden) LockGate("Hidden", unlocked, { unlocked = true }, content) else content()
+                    }
+                    Route.Trash -> LockGate("Recently Deleted", unlocked, { unlocked = true }) {
+                        TrashScreen(
+                            state = state,
+                            onBack = { stack.removeLastOrNull() },
+                            onRecover = { launch(vm.restoreRequest(it)) },
+                            onDeleteForever = { launch(vm.deleteRequest(it)) },
+                        )
+                    }
                     is Route.Viewer -> {
                         val assets = remember(state, route.source) { route.source.assets(state) }
                         ViewerScreen(
@@ -265,7 +325,7 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
                         )
                     }
                     is Route.Edit -> {
-                        val asset = state.assets.firstOrNull { it.key == route.key }
+                        val asset = state.allAssets.firstOrNull { it.key == route.key }
                         if (asset == null) LaunchedEffect(Unit) { stack.removeLastOrNull() }
                         else EditScreen(
                             asset = asset, traits = state.traitsOf(asset), initial = state.editOf(asset),
@@ -277,5 +337,30 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
             }
         }
         busy?.let { BusyOverlay(it) }
+    }
+
+    addingToAlbum?.let { list ->
+        AddToAlbumSheet(
+            state = state, count = list.size,
+            onNewAlbum = { addingToAlbum = null; newAlbumFor = list },
+            onPick = { album ->
+                vm.addToAlbum(album.id, list)
+                addingToAlbum = null
+                selection = null
+                Toast.makeText(context, "Added to ${album.name}", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = { addingToAlbum = null },
+        )
+    }
+    newAlbumFor?.let { list ->
+        TextPromptDialog(
+            title = "New Album", message = "Enter a name for this album.", initial = "", confirm = "Save",
+            onConfirm = { name ->
+                vm.createAlbum(name, list)
+                newAlbumFor = null
+                selection = null
+            },
+            onDismiss = { newAlbumFor = null },
+        )
     }
 }

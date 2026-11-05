@@ -26,6 +26,8 @@ data class Asset(
     val liveVideo: Uri? = null,
     val liveVideoId: Long? = null,
     val embeddedMovie: MotionPhoto.Location? = null,
+    /** For items in Recently Deleted: when Android removes them for good (epoch ms). */
+    val expiresAt: Long = 0,
 ) {
     val key: String get() = (if (isVideo) "v" else "i") + id
     val isLive: Boolean get() = liveVideo != null || embeddedMovie != null
@@ -47,6 +49,8 @@ data class Traits(
     val contentId: String? = null,
     val make: String? = null,
     val model: String? = null,
+    /** Taken with the front camera, from the Exif lens description. */
+    val front: Boolean = false,
     val motionOffset: Long? = null,
     val motionLength: Long? = null,
     /** Where the still sits in the Live movie, when the file records it. */

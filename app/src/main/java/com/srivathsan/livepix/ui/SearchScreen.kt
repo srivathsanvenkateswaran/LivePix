@@ -81,7 +81,7 @@ fun SearchScreen(state: LibraryState, query: String, onQueryChange: (String) -> 
         } else {
             AssetGrid(
                 assets = results, state = state, gridState = grid, columns = columns, onColumnsChange = { columns = it },
-                selection = null, onToggleSelect = {}, onLongPress = {}, onOpen = { onOpen(it, Source.Search(query)) },
+                selection = null, onSelectionChange = {}, onOpen = { onOpen(it, Source.Search(query)) },
                 contentPadding = PaddingValues(top = top + 70.dp, bottom = bottom + TAB_BAR_SPACE + 80.dp),
                 footer = {
                     fullSpan("count") {

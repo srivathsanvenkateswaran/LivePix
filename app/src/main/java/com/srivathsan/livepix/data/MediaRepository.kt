@@ -11,6 +11,38 @@ object MediaRepository {
     private const val MAX_LIVE_MS = 4_500L
     private const val PAIR_WINDOW_MS = 3_000L
 
+    /** Items in Android's trash (Recently Deleted), newest deletion first. */
+    fun loadTrashed(context: Context): List<Asset> {
+        val out = ArrayList<Asset>()
+        for ((base, isVideo) in listOf(MediaStore.Images.Media.EXTERNAL_CONTENT_URI to false, MediaStore.Video.Media.EXTERNAL_CONTENT_URI to true)) {
+            val args = android.os.Bundle().apply { putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_ONLY) }
+            val cols = arrayOf(
+                MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.MIME_TYPE,
+                MediaStore.MediaColumns.DATE_TAKEN, MediaStore.MediaColumns.DATE_MODIFIED, MediaStore.MediaColumns.WIDTH,
+                MediaStore.MediaColumns.HEIGHT, MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.BUCKET_DISPLAY_NAME,
+                MediaStore.MediaColumns.RELATIVE_PATH, MediaStore.MediaColumns.DATE_EXPIRES, MediaStore.MediaColumns.DURATION,
+            )
+            runCatching {
+                context.contentResolver.query(base, cols, args, null)?.use { c ->
+                    while (c.moveToNext()) {
+                        val id = c.getLong(0)
+                        out += Asset(
+                            id = id, uri = ContentUris.withAppendedId(base, id), name = c.getString(1) ?: "",
+                            mime = c.getString(2) ?: "", dateTaken = c.getLong(3), dateModified = c.getLong(4),
+                            width = c.getInt(5), height = c.getInt(6), size = c.getLong(7), folder = c.getString(8) ?: "",
+                            relativePath = c.getString(9) ?: "", isVideo = isVideo, durationMs = c.getLong(11),
+                            expiresAt = c.getLong(10) * 1000,
+                        )
+                    }
+                }
+            }
+        }
+        // A deleted Live Photo's movie is trashed with it; show the pair as one item.
+        val stills = out.filter { !it.isVideo }.map { it.relativePath + "/" + it.baseName }.toSet()
+        return out.filterNot { it.isVideo && isLiveCandidate(it) && (it.relativePath + "/" + it.baseName) in stills }
+            .sortedByDescending { it.expiresAt }
+    }
+
     fun load(context: Context): List<Asset> {
         val images = queryImages(context)
         val videos = queryVideos(context)
