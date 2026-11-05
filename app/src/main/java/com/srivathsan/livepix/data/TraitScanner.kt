@@ -6,6 +6,7 @@ import androidx.exifinterface.media.ExifInterface
 import com.srivathsan.livepix.media.AppleMetadata
 import com.srivathsan.livepix.media.ChannelByteSource
 import com.srivathsan.livepix.media.HeifParser
+import com.srivathsan.livepix.media.MotionPhoto
 import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
@@ -40,6 +41,7 @@ class TraitScanner(private val context: Context) {
                     )
                 } else {
                     val heif = HeifParser.parse(src)
+                    val motion = MotionPhoto.locate(src)
                     val exif = if (heif != null) AppleMetadata.heifExif(src, heif)
                     else runCatching { ExifInterface(FileInputStream(pfd.fileDescriptor).also { it.channel.position(0) }) }.getOrNull()
                     Traits(
@@ -48,6 +50,9 @@ class TraitScanner(private val context: Context) {
                         contentId = exif?.let(AppleMetadata::contentIdFromMakerNote),
                         make = exif?.getAttribute(ExifInterface.TAG_MAKE),
                         model = exif?.getAttribute(ExifInterface.TAG_MODEL),
+                        motionOffset = motion?.offset,
+                        motionLength = motion?.length,
+                        presentationUs = if (motion != null) MotionPhoto.presentationUs(src) else null,
                     )
                 }
             }
@@ -61,6 +66,7 @@ class TraitScanner(private val context: Context) {
             json.put(k, JSONObject().apply {
                 put("d", t.hasDepth); put("m", t.hasMatte)
                 t.contentId?.let { put("c", it) }; t.make?.let { put("mk", it) }; t.model?.let { put("md", it) }
+                t.motionOffset?.let { put("mo", it) }; t.motionLength?.let { put("ml", it) }; t.presentationUs?.let { put("pt", it) }
             })
         }
         runCatching { cacheFile.writeText(json.toString()) }
@@ -71,14 +77,18 @@ class TraitScanner(private val context: Context) {
         val json = runCatching { JSONObject(cacheFile.readText()) }.getOrNull() ?: return out
         for (k in json.keys()) {
             val o = json.getJSONObject(k)
-            out[k] = Traits(o.optBoolean("d"), o.optBoolean("m"), o.optString("c").ifEmpty { null },
-                o.optString("mk").ifEmpty { null }, o.optString("md").ifEmpty { null })
+            out[k] = Traits(
+                o.optBoolean("d"), o.optBoolean("m"), o.optString("c").ifEmpty { null },
+                o.optString("mk").ifEmpty { null }, o.optString("md").ifEmpty { null },
+                if (o.has("mo")) o.getLong("mo") else null, if (o.has("ml")) o.getLong("ml") else null,
+                if (o.has("pt")) o.getLong("pt") else null,
+            )
         }
         return out
     }
 
     private companion object {
         const val TAG = "TraitScanner"
-        const val VERSION = 2
+        const val VERSION = 3
     }
 }

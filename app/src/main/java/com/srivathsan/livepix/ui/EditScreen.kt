@@ -212,6 +212,7 @@ fun EditScreen(
                 when (tab) {
                     EditTab.LIVE -> LivePanel(
                         asset = asset,
+                        presentationUs = traits?.presentationUs,
                         keyFrameUs = draft.keyFrameUs,
                         onScrub = { us, frame -> scrubUs = us; scrubFrame = frame },
                         onMakeKey = { us ->
@@ -314,6 +315,7 @@ private fun FocusSquare(p: Offset, color: Color, onGone: () -> Unit) {
 @Composable
 private fun LivePanel(
     asset: Asset,
+    presentationUs: Long?,
     keyFrameUs: Long?,
     scrubUs: Long?,
     onScrub: (Long?, Bitmap?) -> Unit,
@@ -321,7 +323,9 @@ private fun LivePanel(
     accent: Color,
 ) {
     val context = LocalContext.current
-    val video = asset.liveVideo ?: return
+    val video = produceState<android.net.Uri?>(asset.liveVideo, asset.versionKey) {
+        if (value == null) value = withContext(Dispatchers.IO) { asset.movieUri(context) }
+    }.value ?: return
     // Frames appear one by one as they decode, so the strip fills in like Photos'.
     var duration by remember(video) { mutableLongStateOf(0L) }
     val frames = remember(video) { androidx.compose.runtime.mutableStateListOf<Bitmap?>() }
@@ -334,8 +338,8 @@ private fun LivePanel(
             }
         }
     }
-    // The original still sits mid-movie on iPhone; use that until a key frame is chosen.
-    val keyUs = keyFrameUs ?: (duration / 2)
+    // Motion Photos record where the still sits; iPhone's sits mid-movie.
+    val keyUs = keyFrameUs ?: presentationUs?.coerceAtMost(duration) ?: (duration / 2)
     var position by remember(duration) { mutableFloatStateOf(if (duration > 0) keyUs.toFloat() / duration else 0.5f) }
     var requestUs by remember { mutableLongStateOf(-1L) }
 

@@ -92,7 +92,10 @@ fun InfoSheet(asset: Asset, traits: Traits?, edit: AssetEdit, onDismiss: () -> U
             InfoRow("File", asset.name)
             InfoRow("Album", asset.folder)
             info.latLong?.let { InfoRow("Location", "%.5f, %.5f".format(it[0], it[1])) }
-            if (asset.isLive) InfoRow("Live Photo", if (edit.keyFrameUs != null) "Custom key photo" else "Original key photo")
+            if (asset.isLive) {
+                InfoRow("Live Photo", if (edit.keyFrameUs != null) "Custom key photo" else "Original key photo")
+                InfoRow("Live format", if (asset.isMotionPhoto) "Motion Photo (movie inside the file)" else "HEIC + MOV pair")
+            }
             if (traits?.hasDepth == true) InfoRow("Depth", if (traits.hasMatte) "Depth map + portrait matte" else "Depth map")
         }
     }

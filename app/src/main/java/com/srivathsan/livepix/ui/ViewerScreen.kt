@@ -232,13 +232,15 @@ private fun PhotoPage(
         }
         if (asset.isVideo && isCurrent) VideoLayer(asset)
 
-        val video = asset.liveVideo
+        val video by produceState<android.net.Uri?>(asset.liveVideo, asset.versionKey, isCurrent) {
+            if (isCurrent && asset.isLive && value == null) value = withContext(Dispatchers.IO) { asset.movieUri(context) }
+        }
         if (video != null && isCurrent) {
             when {
-                holdPlaying -> LiveVideoLayer(video, loop = false, withSound = !edit.muted, onEnded = { holdPlaying = false })
-                edit.effect == LiveEffect.LOOP -> LiveVideoLayer(video, loop = true, withSound = false, onEnded = {})
-                edit.effect == LiveEffect.BOUNCE -> BounceLayer(video)
-                previewPlaying -> LiveVideoLayer(video, loop = false, withSound = false, onEnded = { previewPlaying = false })
+                holdPlaying -> LiveVideoLayer(video!!, loop = false, withSound = !edit.muted, onEnded = { holdPlaying = false })
+                edit.effect == LiveEffect.LOOP -> LiveVideoLayer(video!!, loop = true, withSound = false, onEnded = {})
+                edit.effect == LiveEffect.BOUNCE -> BounceLayer(video!!)
+                previewPlaying -> LiveVideoLayer(video!!, loop = false, withSound = false, onEnded = { previewPlaying = false })
             }
         }
     }
@@ -290,7 +292,7 @@ private fun ViewerChrome(
                 GlassIconButton(Icons.Outlined.MoreHoriz, "More") { menu = true }
                 IosMenu(menu, onDismiss = { menu = false }) {
                     MenuRow("Save a Copy") { menu = false; actions.onSaveCopy(asset) }
-                    if (asset.isLive) MenuRow("Export as Motion Photo") { menu = false; actions.onMotionPhoto(asset) }
+                    if (asset.liveVideo != null) MenuRow("Export as Motion Photo") { menu = false; actions.onMotionPhoto(asset) }
                     MenuRow("Share Original File") { menu = false; actions.onShareOriginal(asset) }
                     if (edit.isModified(asset, traits) && (edit.keyFrameUs != null || edit.effect != LiveEffect.LIVE)) {
                         MenuRow("Revert to Original", color = c.red) {

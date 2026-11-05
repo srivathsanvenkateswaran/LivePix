@@ -94,7 +94,6 @@ object MediaRepository {
      */
     fun pairByContent(assets: List<Asset>, traits: Map<String, Traits>): List<Asset> {
         val freeVideos = assets.filter(::isLiveCandidate)
-        if (freeVideos.isEmpty()) return assets
         val videosById = freeVideos.mapNotNull { v -> traits[v.versionKey]?.contentId?.let { it to v } }.toMap()
         val used = HashSet<Long>()
         val result = assets.map { a ->
@@ -112,7 +111,10 @@ object MediaRepository {
                 a.copy(liveVideo = match.uri, liveVideoId = match.id)
             } else a
         }
-        return result.filter { !(it.isVideo && it.id in used) }
+        return result.filter { !(it.isVideo && it.id in used) }.map { a ->
+            val motion = if (!a.isVideo && a.liveVideo == null) traits[a.versionKey]?.motion else null
+            if (motion != null) a.copy(embeddedMovie = motion) else a
+        }
     }
 
     fun videoUri(id: Long): Uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)

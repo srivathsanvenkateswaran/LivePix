@@ -52,7 +52,7 @@ object StillRenderer {
 
     private fun renderLocked(context: Context, asset: Asset, traits: Traits?, edit: AssetEdit, maxSide: Int, key: String): Bitmap? {
 
-        val video = asset.liveVideo
+        val video = if (asset.isLive) asset.movieUri(context) else null
         var fromStill = true
         val base: Bitmap = when {
             video != null && edit.effect == LiveEffect.LONG_EXPOSURE -> {
@@ -94,7 +94,7 @@ object StillRenderer {
         val dir = File(context.cacheDir, "longexposure").apply { mkdirs() }
         val file = File(dir, "${asset.versionKey.replace(':', '_')}_$maxSide.jpg")
         if (file.exists()) ImageLoader.decode(context, android.net.Uri.fromFile(file), maxSide, software = true)?.let { return it }
-        val bmp = LiveMedia(context, asset.liveVideo ?: return null).use { it.longExposure(maxSide) } ?: return null
+        val bmp = LiveMedia(context, asset.movieUri(context) ?: return null).use { it.longExposure(maxSide) } ?: return null
         runCatching { file.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 92, it) } }
         return bmp
     }

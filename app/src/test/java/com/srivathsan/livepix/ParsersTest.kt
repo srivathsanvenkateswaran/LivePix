@@ -7,6 +7,7 @@ import com.srivathsan.livepix.media.DepthData
 import com.srivathsan.livepix.media.Exporter
 import com.srivathsan.livepix.media.GrayImage
 import com.srivathsan.livepix.media.HeifParser
+import com.srivathsan.livepix.media.MotionPhoto
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -46,6 +47,22 @@ class ParsersTest {
             assertEquals("grid", heif.primary!!.type)
             assertNull(heif.depthItem)
         }
+    }
+
+    @Test
+    fun findsMovieInsideGoogleMotionPhoto() {
+        ChannelByteSource.of(sample("motion/IMG_4568.MP.HEIC")).use { src ->
+            val loc = MotionPhoto.locate(src)!!
+            // The embedded movie is the original iPhone QuickTime file.
+            assertEquals("ftypqt  ", String(src.read(loc.offset + 4, 8), Charsets.US_ASCII))
+            assertEquals(src.size, loc.offset + loc.length)
+            assertNotNull("still is a normal HEIF", HeifParser.parse(src)?.primary)
+        }
+    }
+
+    @Test
+    fun plainHeicIsNotAMotionPhoto() {
+        ChannelByteSource.of(sample("IMG_1964.heic")).use { assertNull(MotionPhoto.locate(it)) }
     }
 
     @Test
