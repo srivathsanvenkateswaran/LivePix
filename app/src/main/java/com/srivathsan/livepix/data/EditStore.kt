@@ -29,6 +29,8 @@ class EditStore(context: Context) {
         put("fav", e.favorite)
         if (e.adjust.isNotEmpty()) put("adj", JSONObject().apply { e.adjust.forEach { (k, v) -> put(k, v.toDouble()) } })
         if (e.filter != "ORIGINAL") { put("flt", e.filter); put("fli", e.filterIntensity.toDouble()) }
+        if (e.trimStartUs > 0) put("ts", e.trimStartUs)
+        e.trimEndUs?.let { put("te", it) }
         e.crop?.let { c ->
             put("crop", JSONObject().apply {
                 put("q", c.quarterTurns); put("f", c.flip); put("s", c.straighten.toDouble())
@@ -53,6 +55,8 @@ class EditStore(context: Context) {
             adjust = o.optJSONObject("adj")?.let { a -> a.keys().asSequence().associateWith { a.getDouble(it).toFloat() } }.orEmpty(),
             filter = o.optString("flt", "ORIGINAL"),
             filterIntensity = o.optDouble("fli", 1.0).toFloat(),
+            trimStartUs = o.optLong("ts", 0),
+            trimEndUs = if (o.has("te")) o.getLong("te") else null,
             crop = o.optJSONObject("crop")?.let { c ->
                 com.srivathsan.livepix.media.CropSpec(
                     c.optInt("q"), c.optBoolean("f"), c.optDouble("s").toFloat(),

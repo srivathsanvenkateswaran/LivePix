@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -235,7 +236,7 @@ fun CropOverlay(crop: CropSpec, aspect: Float?, imageAspect: Float, onChange: (C
     val current by rememberUpdatedState(crop)
     var dragging by remember { mutableStateOf(false) }
     Canvas(
-        Modifier.fillMaxSize().pointerInput(aspect, imageAspect) {
+        Modifier.fillMaxSize().systemGestureExclusion().pointerInput(aspect, imageAspect) {
             var mode = 0 // bit flags: 1 left, 2 top, 4 right, 8 bottom; 15 = move
             detectDragGestures(
                 onDragStart = { p ->

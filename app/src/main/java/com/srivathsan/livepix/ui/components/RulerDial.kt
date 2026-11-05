@@ -2,6 +2,7 @@ package com.srivathsan.livepix.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,7 +48,7 @@ fun RulerDial(
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label(value), style = IosType.footnote.copy(fontWeight = FontWeight.SemiBold), color = accent)
         Box(
-            Modifier.fillMaxWidth().height(44.dp).pointerInput(range, step) {
+            Modifier.fillMaxWidth().height(44.dp).systemGestureExclusion().pointerInput(range, step) {
                 var acc = 0f
                 detectHorizontalDragGestures(onDragStart = { acc = 0f }) { change, dx ->
                     change.consume()

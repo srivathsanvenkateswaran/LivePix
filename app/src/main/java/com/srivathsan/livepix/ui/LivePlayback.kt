@@ -78,19 +78,7 @@ fun LiveVideoLayer(
         player.addListener(listener)
         onDispose { player.removeListener(listener); player.release() }
     }
-    AndroidView(
-        factory = {
-            PlayerView(it).apply {
-                useController = false
-                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
-                setKeepContentOnPlayerReset(true)
-                this.player = player
-            }
-        },
-        update = { it.player = player },
-        modifier = modifier.fillMaxSize().alpha(alpha),
-    )
+    PlayerTexture(player, modifier.fillMaxSize().alpha(alpha))
 }
 
 /** Bounce: frames played forward then backward, forever. */

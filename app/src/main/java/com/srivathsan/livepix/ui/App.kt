@@ -51,6 +51,7 @@ import com.srivathsan.livepix.GalleryViewModel
 import com.srivathsan.livepix.data.Asset
 import com.srivathsan.livepix.media.Exporter
 import com.srivathsan.livepix.media.StillRenderer
+import com.srivathsan.livepix.media.VideoTrim
 import com.srivathsan.livepix.ui.components.FloatingTabBar
 import com.srivathsan.livepix.ui.components.TabItem
 import com.srivathsan.livepix.ui.theme.Ios
@@ -141,8 +142,11 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
             assets.map { a ->
                 val edit = state.editOf(a)
                 val traits = state.traitsOf(a)
-                if (!a.isVideo && (StillRenderer.needsRender(a, traits, edit) || a.isHeif)) Exporter.renderJpeg(context, a, traits, edit)
-                else Exporter.original(context, a.uri, a.name)
+                when {
+                    a.isVideo && edit.isTrimmed -> null
+                    !a.isVideo && (StillRenderer.needsRender(a, traits, edit) || a.isHeif) -> Exporter.renderJpeg(context, a, traits, edit)
+                    else -> Exporter.original(context, a.uri, a.name)
+                } ?: VideoTrim.export(context, a.uri, a.name, edit.trimStartUs, edit.trimEndUs)
             }
         }
         val mime = when {
@@ -185,8 +189,13 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
             onDelete = { trash(listOf(it)) },
             onSaveCopy = { a ->
                 runExport("Saving…") {
-                    withContext(Dispatchers.IO) {
-                        val f = Exporter.renderJpeg(context, a, state.traitsOf(a), state.editOf(a))
+                    val e = state.editOf(a)
+                    if (a.isVideo) {
+                        val f = if (e.isTrimmed) VideoTrim.export(context, a.uri, a.name, e.trimStartUs, e.trimEndUs)
+                        else withContext(Dispatchers.IO) { Exporter.original(context, a.uri, a.name) }
+                        withContext(Dispatchers.IO) { Exporter.saveToGallery(context, f, "video/mp4", a.dateTaken) }
+                    } else withContext(Dispatchers.IO) {
+                        val f = Exporter.renderJpeg(context, a, state.traitsOf(a), e)
                         Exporter.saveToGallery(context, f, "image/jpeg", a.dateTaken)
                     }
                     Toast.makeText(context, "Saved to Pictures/LivePix", Toast.LENGTH_SHORT).show()
@@ -327,6 +336,11 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
                     is Route.Edit -> {
                         val asset = state.allAssets.firstOrNull { it.key == route.key }
                         if (asset == null) LaunchedEffect(Unit) { stack.removeLastOrNull() }
+                        else if (asset.isVideo) VideoEditScreen(
+                            asset = asset, initial = state.editOf(asset),
+                            onCancel = { stack.removeLastOrNull() },
+                            onDone = { e -> vm.updateEdit(asset) { e }; stack.removeLastOrNull() },
+                        )
                         else EditScreen(
                             asset = asset, traits = state.traitsOf(asset), initial = state.editOf(asset),
                             onCancel = { stack.removeLastOrNull() },

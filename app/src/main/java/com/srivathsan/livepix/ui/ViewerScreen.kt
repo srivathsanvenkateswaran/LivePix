@@ -138,6 +138,9 @@ fun ViewerScreen(
     val currentZoom = zoomStates.getOrPut(current.key) { ZoomState() }
     val dismissProgress = (currentZoom.dismissY / 900f).coerceIn(0f, 1f)
     val bg by animateColorAsState(if (chrome) c.background else Color.Black, tween(200), label = "bg")
+    // One player for the video that has settled on screen; it autoplays, as in Photos.
+    val settled = assets.getOrNull(pager.settledPage.coerceIn(0, assets.lastIndex)) ?: current
+    val video = rememberVideoState(settled, state.editOf(settled), active = settled.isVideo)
 
     LaunchedEffect(pager) {
         snapshotFlow { pager.settledPage }.distinctUntilChanged().collect { assets.getOrNull(it)?.let(onPageChange) }
@@ -159,6 +162,7 @@ fun ViewerScreen(
                 traits = state.traitsOf(asset),
                 edit = state.editOf(asset),
                 isCurrent = page == pager.settledPage,
+                video = if (asset.key == settled.key) video else null,
                 zoom = zoom,
                 onTap = { chrome = !chrome },
                 onDismiss = actions.onBack,
@@ -173,6 +177,7 @@ fun ViewerScreen(
                 pager = pager,
                 state = state,
                 actions = actions,
+                video = if (current.key == settled.key) video else null,
                 onInfo = { showInfo = true },
             )
         }
@@ -187,6 +192,7 @@ private fun PhotoPage(
     traits: Traits?,
     edit: AssetEdit,
     isCurrent: Boolean,
+    video: VideoState?,
     zoom: ZoomState,
     onTap: () -> Unit,
     onDismiss: () -> Unit,
@@ -233,7 +239,7 @@ private fun PhotoPage(
         Box(Modifier.fillMaxSize().sharedAsset(asset.key)) {
             FadingBitmap(best, Modifier.fillMaxSize(), ContentScale.Fit)
         }
-        if (asset.isVideo && isCurrent) VideoLayer(asset)
+        if (video != null) VideoSurface(video)
 
         val video by produceState<android.net.Uri?>(asset.liveVideo, asset.versionKey, isCurrent) {
             if (isCurrent && asset.isLive && value == null) value = withContext(Dispatchers.IO) { asset.movieUri(context) }
@@ -250,27 +256,13 @@ private fun PhotoPage(
 }
 
 @Composable
-private fun VideoLayer(asset: Asset) {
-    var playing by remember(asset.key) { mutableStateOf(false) }
-    if (playing) {
-        LiveVideoLayer(asset.uri, loop = false, withSound = true, onEnded = { playing = false })
-    } else {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Box(
-                Modifier.size(72.dp).glass(dark = true).clickable { playing = true },
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Filled.PlayArrow, "Play", tint = Color.White, modifier = Modifier.size(40.dp)) }
-        }
-    }
-}
-
-@Composable
 private fun ViewerChrome(
     asset: Asset,
     assets: List<Asset>,
     pager: PagerState,
     state: LibraryState,
     actions: ViewerActions,
+    video: VideoState?,
     onInfo: () -> Unit,
 ) {
     val c = Ios.colors
@@ -326,7 +318,7 @@ private fun ViewerChrome(
 
         // Bottom: filmstrip, then toolbar.
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = bottom + 12.dp)) {
-            Filmstrip(assets, pager, state)
+            if (asset.isVideo && video != null) VideoControls(video, asset) else Filmstrip(assets, pager, state)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 GlassIconButton(Icons.Outlined.IosShare, "Share", size = 48.dp) { actions.onShare(asset) }
@@ -337,7 +329,7 @@ private fun ViewerChrome(
                         tint = if (edit.favorite) c.red else c.label,
                     ) { actions.onFavorite(asset) }
                     GroupIcon(Icons.Outlined.Info, "Info", onClick = onInfo)
-                    if (!asset.isVideo) GroupIcon(Icons.Outlined.Tune, "Edit") { actions.onEdit(asset) }
+                    GroupIcon(Icons.Outlined.Tune, "Edit") { actions.onEdit(asset) }
                 }
                 Spacer(Modifier.weight(1f))
                 GlassIconButton(Icons.Outlined.Delete, "Delete", size = 48.dp) { actions.onDelete(asset) }

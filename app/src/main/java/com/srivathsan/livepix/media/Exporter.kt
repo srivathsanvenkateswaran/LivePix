@@ -76,7 +76,9 @@ object Exporter {
             put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
         val resolver = context.contentResolver
-        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return null
+        val collection = if (mime.startsWith("video/")) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        if (mime.startsWith("video/")) values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/" + ALBUM)
+        val uri = resolver.insert(collection, values) ?: return null
         resolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } }
         resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
         return uri

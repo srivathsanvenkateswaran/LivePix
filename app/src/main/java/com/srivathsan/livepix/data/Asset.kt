@@ -86,7 +86,12 @@ data class AssetEdit(
     val filter: String = "ORIGINAL",
     val filterIntensity: Float = 1f,
     val crop: com.srivathsan.livepix.media.CropSpec? = null,
+    /** Video trim in microseconds; null end means the full length. */
+    val trimStartUs: Long = 0,
+    val trimEndUs: Long? = null,
 ) {
+    val isTrimmed: Boolean get() = trimStartUs > 0 || trimEndUs != null
+
     /** Adjust, Filters or Crop change the picture. */
     val hasImageEdits: Boolean
         get() = adjust.values.any { it != 0f } || filter != "ORIGINAL" || crop?.isIdentity == false
