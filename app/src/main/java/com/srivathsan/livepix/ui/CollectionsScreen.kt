@@ -117,7 +117,7 @@ private fun CollectionCard(title: String, assets: List<Asset>, size: androidx.co
     val c = Ios.colors
     Column(Modifier.width(size).clickable(onClick = onClick)) {
         Box(Modifier.size(size).clip(RoundedCornerShape(12.dp)).background(c.fill), contentAlignment = Alignment.Center) {
-            val cover = assets.lastOrNull()
+            val cover = assets.lastOrNull { !it.isVideo } ?: assets.lastOrNull()
             if (cover != null) {
                 val bmp = rememberThumbnail(cover, size)
                 if (bmp != null) Image(bmp.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())

@@ -61,7 +61,8 @@ fun Modifier.glass(shape: Shape = CircleShape, dark: Boolean? = null): Modifier 
     val isDark = dark ?: c.isDark
     return glass(
         shape,
-        if (isDark) Color(0xB82C2C2E) else Color(0xE6FAFAFA),
+        // Android can't blur what's behind a view cheaply, so the glass is more opaque than iOS's.
+        if (isDark) Color(0xEB2C2C2E) else Color(0xF5FAFAFA),
         if (isDark) Color(0x24FFFFFF) else Color(0xB3FFFFFF),
     )
 }

@@ -59,7 +59,7 @@ fun AlbumScreen(
             onToggleSelect = { a -> selection?.let { s -> selection = if (a.key in s) s - a.key else s + a.key } },
             onLongPress = { a -> selection = (selection ?: emptySet()) + a.key },
             onOpen = onOpen,
-            contentPadding = PaddingValues(top = top + 112.dp, bottom = bottom + 80.dp),
+            contentPadding = PaddingValues(top = top + 142.dp, bottom = bottom + 80.dp),
             footer = {
                 fullSpan("footer") {
                     Text(

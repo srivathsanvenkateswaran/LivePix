@@ -47,39 +47,57 @@ class LiveMedia(context: Context, uri: Uri) : AutoCloseable {
 
     /**
      * Long Exposure: the average of every frame, like iPhone's effect that turns moving water
-     * silky. Frames are accumulated one at a time so memory stays flat.
+     * silky. Frames are first aligned to the first frame so hand shake doesn't smear the
+     * static parts of the scene. Frames are accumulated one at a time so memory stays flat.
      */
     fun longExposure(maxSide: Int): Bitmap? {
         val total = if (frameCount > 0) frameCount else 0
         if (total == 0) return null
         val params = MediaMetadataRetriever.BitmapParams().apply { preferredConfig = Bitmap.Config.ARGB_8888 }
         var sums: IntArray? = null
+        var counts: IntArray? = null
         var w = 0; var h = 0; var n = 0
         var px = IntArray(0)
+        var reference: Pyramid? = null
         for (i in 0 until total) {
             val raw = runCatching { retriever.getFrameAtIndex(i, params) }.getOrNull() ?: continue
             val frame = scaleDown(raw, maxSide)
             if (sums == null) {
                 w = frame.width; h = frame.height
-                sums = IntArray(w * h * 3); px = IntArray(w * h)
+                sums = IntArray(w * h * 3); counts = IntArray(w * h); px = IntArray(w * h)
             }
             if (frame.width != w || frame.height != h) continue
             frame.getPixels(px, 0, w, 0, 0, w, h)
+            frame.recycle()
+            val pyramid = Pyramid.of(px, w, h)
+            val (dx, dy) = reference?.let { FrameAligner.offset(it, pyramid) } ?: (0 to 0)
+            if (reference == null) reference = pyramid
             val s = sums
-            for (p in px.indices) {
-                val c = px[p]
-                s[p * 3] += c shr 16 and 0xFF
-                s[p * 3 + 1] += c shr 8 and 0xFF
-                s[p * 3 + 2] += c and 0xFF
+            val c = counts!!
+            // Pixel (x, y) of the reference view comes from (x + dx, y + dy) in this frame.
+            for (y in 0 until h) {
+                val sy = y + dy
+                if (sy < 0 || sy >= h) continue
+                for (x in 0 until w) {
+                    val sx = x + dx
+                    if (sx < 0 || sx >= w) continue
+                    val col = px[sy * w + sx]
+                    val p = y * w + x
+                    s[p * 3] += col shr 16 and 0xFF
+                    s[p * 3 + 1] += col shr 8 and 0xFF
+                    s[p * 3 + 2] += col and 0xFF
+                    c[p]++
+                }
             }
             n++
-            frame.recycle()
         }
         val s = sums ?: return null
+        val c = counts!!
         for (p in px.indices) {
-            px[p] = (0xFF shl 24) or ((s[p * 3] / n) shl 16) or ((s[p * 3 + 1] / n) shl 8) or (s[p * 3 + 2] / n)
+            val k = c[p].coerceAtLeast(1)
+            px[p] = (0xFF shl 24) or ((s[p * 3] / k) shl 16) or ((s[p * 3 + 1] / k) shl 8) or (s[p * 3 + 2] / k)
         }
-        return Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
+        return if (n == 0) null else Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
     }
 
     private fun scaledSize(maxSide: Int): Pair<Int, Int> {
