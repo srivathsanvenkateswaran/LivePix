@@ -14,32 +14,42 @@ the files and gives those controls back, inside an interface modelled on the iPh
 
 ## Features
 
-### Live Photos
-- Pairs each still (`IMG_1234.HEIC`) with its movie (`IMG_1234.MOV`) automatically. Pairs whose
-  files were renamed in transit are matched through the content identifier iPhone writes into both.
-- Press and hold a photo to play it with sound. Like on iPhone, it also moves briefly when you
-  swipe to it.
+### Live Photos and Motion Photos
+- Works with iPhone's HEIC + MOV pairs and with **Motion Photos**, where the movie is inside the
+  file. That covers iPhone photos converted by Google Photos (`IMG_0409.MP.HEIC`) and Pixel and
+  Samsung motion photos. Pairs renamed in transit are matched through the content identifier
+  iPhone writes into both files.
+- Press and hold to play with sound; the photo also moves briefly when you swipe to it.
 - The LIVE menu offers **Live**, **Loop**, **Bounce**, **Long Exposure** and **Off**. Long Exposure
   aligns the frames to cancel hand shake before blending them.
-- **Edit → Live**: scrub through the movie and tap **Make Key Photo** to choose a different moment.
-  Live and sound can be toggled.
-- **Export as Motion Photo** converts a Live Photo to Google's Motion Photo format, which Google
-  Photos and most Android galleries play.
+- **Edit → Live**: scrub through the movie and tap **Make Key Photo**; toggle Live and sound.
+- **Export as Motion Photo** turns an iPhone HEIC + MOV pair into Google's Motion Photo format.
 
 ### Portrait
 - Reads the depth map and subject matte stored inside iPhone Portrait HEICs and renders the
-  background blur on the phone. The file itself holds the sharp original, so turning Portrait off
-  loses nothing.
+  background blur on the phone. The file holds the sharp original, so Portrait can be turned off.
 - **Edit → Portrait**: Portrait on/off, an ƒ1.4–ƒ16 depth dial, tap to refocus, and the six Portrait
-  Lighting styles (Natural, Studio, Contour, Stage, Stage Mono, High-Key Mono) with intensity.
+  Lighting styles with intensity.
 
-### Gallery
-- Library grid with **Years / Months / All** and pinch to change density, Collections (pinned
-  items, albums, media types), Search, and an info panel with camera, lens and exposure details.
-- Share, save an edited copy, and delete. Light and dark mode.
+### Editing
+- **Adjust**: Auto, Exposure, Brilliance, Highlights, Shadows, Contrast, Brightness, Black Point,
+  Saturation, Vibrance, Warmth, Tint, Sharpness, Definition, Noise Reduction and Vignette.
+- **Filters**: Vivid, Dramatic (each also Warm and Cool), Mono, Silvertone and Noir, with intensity.
+- **Crop**: free or fixed aspect, rotate, flip, and straighten.
+- **Video trim**, applied when you share or save.
+- Every edit is non-destructive and can be reverted; the grid shows edited versions, as in Photos.
 
-Edits are non-destructive: they are stored by the app and never written into your photos.
-**Save a Copy** writes an edited JPEG, with the original camera metadata, to `Pictures/LivePix`.
+### Library and organisation
+- Library grid with **Years / Months / All**, pinch to change density, and **swipe to select**
+  (drag across photos in Select mode; the grid scrolls at the edges).
+- Long-press any photo for a menu: Share, Favourite, Add to Album, Select, Hide, Delete.
+- **My Albums** (create, rename, delete, add and remove photos) plus the phone's own folders.
+- **Media types**: Favourites, Videos, Selfies, Live Photos, Portrait, Long Exposure, Panoramas,
+  Screenshots, Animated, RAW and Recently Edited.
+- **Hidden** and **Recently Deleted**, locked with your fingerprint, face or screen lock. Delete moves
+  items to Android's 30-day trash, from which they can be recovered.
+- Search, an info panel with camera, lens and exposure details, video playback with a scrubber,
+  share, save a copy, and light and dark mode.
 
 ## Moving photos from an iPhone
 
