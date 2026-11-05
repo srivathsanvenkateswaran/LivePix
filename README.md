@@ -1,94 +1,119 @@
 # LivePix
 
-An Android gallery that understands photos taken on an iPhone. Live Photos, Portrait depth and
-Apple's photo metadata keep working after the files move to an Android phone, and the interface
-follows the iPhone Photos app.
+**An Android gallery that understands photos taken on an iPhone.**
 
-## What it does
+When iPhone photos land on an Android phone, Live Photos turn into a still plus a stray video,
+and Portrait shots lose the controls that made them Portrait. LivePix reads what the iPhone left in
+the files and gives those controls back, inside an interface modelled on the iPhone Photos app.
 
-**Live Photos**
-- Pairs each still (`IMG_1234.HEIC`) with its movie (`IMG_1234.MOV`). Files renamed in
-  transit still pair by Apple's content identifier, which iPhone writes into both files.
-- Press and hold to play with sound; the photo also moves briefly when you swipe to it.
-- LIVE menu: Live, Loop, Bounce, Long Exposure (frames aligned for hand shake, then averaged), Off.
-- Edit → Live: drag through the movie and tap **Make Key Photo**; toggle LIVE and sound.
-- **Export as Motion Photo** turns a Live Photo into Google's format, which Google Photos and
-  most Android galleries play.
+[![CI](https://github.com/srivathsanvenkateswaran/LivePix/actions/workflows/ci.yml/badge.svg)](https://github.com/srivathsanvenkateswaran/LivePix/actions/workflows/ci.yml)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-**Portrait**
-- Reads the depth map and portrait matte iPhone stores inside the HEIC, and renders the blur
-  itself. The file keeps the sharp original, so Portrait can be turned off without loss.
-- Edit → Portrait: PORTRAIT on/off, ƒ1.4–ƒ16 depth dial, tap to refocus, and Natural / Studio /
-  Contour / Stage / Stage Mono / High-Key Mono lighting with an intensity dial.
+> **Status:** 1.0 is in device testing ahead of a Play Store release. Bug reports with sample
+> files are very welcome (see [Reporting problems](#reporting-problems)).
 
-**Gallery**
-- Library (Years, Months, All, pinch to change grid density), Collections (pinned, albums,
-  media types), Search, info sheet with camera and exposure details, share, save a copy, delete.
+## Features
 
-Edits are stored in the app and never written into your original files. "Save a Copy" writes an
-edited JPEG (with the original Exif) to `Pictures/LivePix`.
+### Live Photos
+- Pairs each still (`IMG_1234.HEIC`) with its movie (`IMG_1234.MOV`) automatically. Pairs whose
+  files were renamed in transit are matched through the content identifier iPhone writes into both.
+- Press and hold a photo to play it with sound. Like on iPhone, it also moves briefly when you
+  swipe to it.
+- The LIVE menu offers **Live**, **Loop**, **Bounce**, **Long Exposure** and **Off**. Long Exposure
+  aligns the frames to cancel hand shake before blending them.
+- **Edit → Live**: scrub through the movie and tap **Make Key Photo** to choose a different moment.
+  Live and sound can be toggled.
+- **Export as Motion Photo** converts a Live Photo to Google's Motion Photo format, which Google
+  Photos and most Android galleries play.
 
-## Getting photos from the iPhone
+### Portrait
+- Reads the depth map and subject matte stored inside iPhone Portrait HEICs and renders the
+  background blur on the phone. The file itself holds the sharp original, so turning Portrait off
+  loses nothing.
+- **Edit → Portrait**: Portrait on/off, an ƒ1.4–ƒ16 depth dial, tap to refocus, and the six Portrait
+  Lighting styles (Natural, Studio, Contour, Stage, Stage Mono, High-Key Mono) with intensity.
 
-The transfer method decides what survives. LivePix needs the original HEIC (for depth) and the
-MOV (for Live).
+### Gallery
+- Library grid with **Years / Months / All** and pinch to change density, Collections (pinned
+  items, albums, media types), Search, and an info panel with camera, lens and exposure details.
+- Share, save an edited copy, and delete. Light and dark mode.
 
-| Method | Keeps Live movie | Keeps depth |
+Edits are non-destructive: they are stored by the app and never written into your photos.
+**Save a Copy** writes an edited JPEG, with the original camera metadata, to `Pictures/LivePix`.
+
+## Moving photos from an iPhone
+
+What arrives on Android depends on how the photos are sent. LivePix needs the original HEIC
+(Portrait depth) and the MOV (Live movie).
+
+| Method | Live movie kept | Portrait depth kept |
 |---|---|---|
-| AirDrop ↔ Quick Share, with **Options → All Photos Data** on in the iPhone share sheet | Likely (not yet verified) | Likely (not yet verified) |
-| USB to a Mac/PC (Image Capture, Windows Photos), then copy to the phone | Yes | Yes |
-| Mac Photos → File → Export Unmodified Original | Yes | Yes |
-| WhatsApp, Instagram, most messaging apps | No | No |
+| USB to a Mac or PC (Image Capture, Windows Photos), then copy to the phone | Yes | Yes |
+| Mac Photos → **File → Export → Export Unmodified Original** | Yes | Yes |
+| AirDrop to Quick Share, with **Options → All Photos Data** on in the iPhone share sheet | Not yet confirmed | Not yet confirmed |
+| WhatsApp, Instagram and most messaging apps | No | No |
 
-Copy the files anywhere in the phone's storage (for example `DCIM/iPhone`); LivePix finds them
+Put the files anywhere in the phone's storage, for example `DCIM/iPhone`. LivePix finds them
 through Android's media library.
 
 ## Install
 
-Requires Android 11 or later.
+LivePix needs Android 11 or later. Until the Play Store release, download the APK from
+[Releases](https://github.com/srivathsanvenkateswaran/LivePix/releases) or build it yourself.
+
+## Building
+
+Requirements: JDK 17, Android SDK platform 37, NDK 27.1.12297006 and CMake 3.22.1.
 
 ```sh
-./gradlew :app:assembleRelease
-adb install app/build/outputs/apk/release/app-release.apk
+git clone https://github.com/srivathsanvenkateswaran/LivePix.git
+cd LivePix
+./gradlew :app:assembleDebug          # debug APK
+./gradlew :app:testDebugUnitTest      # JVM tests
+./gradlew :app:connectedDebugAndroidTest   # on a device or emulator
 ```
 
-The release build is signed with the local debug key, which is fine for installing on your own
-phone but not for publishing.
+Tests that need real iPhone files read them from `samples/`, which is git-ignored so personal
+photos never enter the repository. Without samples, those tests are skipped. The expected names
+are in `ParsersTest.kt` and `DepthDecodeTest.kt`.
 
-## Build and test
-
-- JDK 17, Android SDK platform 37, NDK 27.1, CMake 3.22.
-- `./gradlew :app:testDebugUnitTest` runs the parser, alignment and XMP tests.
-- `./gradlew :app:connectedDebugAndroidTest` decodes real depth maps on a device or emulator.
-
-Tests that need real iPhone files read them from `samples/` (git-ignored, so your photos never
-enter the repository) and skip when it is empty.
-
-`tools/heif_inspect.py` and `tools/makernote_cid.py` inspect HEIC structure and Live content
-identifiers on a Mac.
+`tools/heif_inspect.py` lists the items inside a HEIC (depth, mattes, rotation), and
+`tools/makernote_cid.py` prints a still's Live Photo content identifier. Both run with the stock
+Python 3 on macOS or Linux.
 
 ## How it works
 
-- `media/HeifParser.kt` reads the HEIF `meta` box: items, locations, rotation, and auxiliary
-  images such as `urn:mpeg:hevc:2015:auxid:2` (depth) and Apple's portrait matte.
-- Depth maps and mattes are monochrome HEVC, which Android's decoders reject, so they are decoded
-  with [libde265](https://github.com/strukturag/libde265) (vendored in `app/src/main/cpp`,
-  LGPL-3.0) through a small JNI bridge. The same path decodes whole HEICs on devices whose
-  platform HEIF decoder fails.
-- `media/PortraitRenderer.kt` blurs by depth using several blur levels. In-focus pixels are
-  weighted out of the blurred layers so the subject doesn't leave a halo.
-- `data/MediaRepository.kt` and `data/TraitScanner.kt` build the library and pair Live Photos;
-  scan results are cached so each file is read once.
+| Piece | What it does |
+|---|---|
+| `media/HeifParser.kt` | Reads the HEIF `meta` box: items, extents, rotation, references, and auxiliary images such as depth (`urn:mpeg:hevc:2015:auxid:2`) and Apple's portrait matte. |
+| `cpp/depth_decoder.cpp` + [libde265](https://github.com/strukturag/libde265) | Decodes the monochrome HEVC that depth maps and mattes use, which Android's built-in decoders reject. Also decodes whole HEICs on phones whose system decoder fails. |
+| `media/PortraitRenderer.kt` | Depth-of-field blur built from several blur levels. In-focus pixels are kept out of the blurred layers so the subject doesn't leave a halo. Lighting styles use the subject matte. |
+| `media/AppleMetadata.kt` | Reads Live Photo content identifiers from the HEIC MakerNote and the MOV `keys` metadata. |
+| `media/LiveMedia.kt`, `FrameAligner.kt` | Frame extraction for key photos and Bounce; aligned frame averaging for Long Exposure. |
+| `media/Exporter.kt` | Edited JPEG export with the original Exif, and Motion Photo assembly (JPEG + MP4 + XMP). |
+| `data/` | MediaStore scanning, Live pairing, cached per-file metadata, and stored edits. |
+| `ui/` | Jetpack Compose screens styled after iOS Photos. |
 
 ## Known limitations
 
-- Portrait lighting and blur are approximations of Apple's rendering, not the same algorithm.
-- iPhone uses SF Pro and real backdrop blur for its glass controls. Android can't ship SF Pro,
-  so the app uses the system font, and its glass is a translucent fill.
-- Edits made in Apple Photos (stored in `.AAE` files) are not read.
-- Developed and tested on an Android 15 emulator with real iPhone 14 Pro, 16 Pro and 17 photos.
-  Live Photo tests used generated movies, because none of the sample folders contained an
-  intact HEIC + MOV pair. Not yet run on a physical Android phone.
-- What the AirDrop ↔ Quick Share bridge delivers has not been checked with a real transfer.
-- libde265 is statically linked. That's fine for personal use; distributing the app would need
-  LGPL-3.0 compliance (for example, linking it as a separate shared library).
+- Portrait blur and lighting approximate Apple's rendering; results are close but not identical.
+- Apple's SF Pro font and true backdrop blur aren't available on Android, so the app uses the
+  system font and translucent controls.
+- Edits made in Apple Photos (stored in separate `.AAE` files) are not read.
+- Older iPhone "Most Compatible" JPEGs carry depth in a different form, which isn't supported yet.
+
+## Reporting problems
+
+Please open an [issue](https://github.com/srivathsanvenkateswaran/LivePix/issues) with the iPhone
+model, how the photos were transferred, and, if you can share it, a sample file. Running
+`tools/heif_inspect.py` on the file and pasting the output helps too.
+
+## Privacy
+
+LivePix works entirely on the device. It has no network access and collects no data. See
+[PRIVACY.md](PRIVACY.md).
+
+## License
+
+LivePix is free software under the [GNU General Public License v3.0](LICENSE). Third-party
+components and their licenses are listed in [NOTICE.md](NOTICE.md).
