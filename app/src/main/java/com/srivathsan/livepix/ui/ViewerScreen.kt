@@ -326,7 +326,7 @@ private fun ViewerChrome(
 
         // Bottom: filmstrip, then toolbar.
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = bottom + 12.dp)) {
-            Filmstrip(assets, pager)
+            Filmstrip(assets, pager, state)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 GlassIconButton(Icons.Outlined.IosShare, "Share", size = 48.dp) { actions.onShare(asset) }
@@ -348,7 +348,7 @@ private fun ViewerChrome(
 
 /** The thumbnail strip above the toolbar; the current item is drawn wider, like Photos. */
 @Composable
-private fun Filmstrip(assets: List<Asset>, pager: PagerState) {
+private fun Filmstrip(assets: List<Asset>, pager: PagerState, state: LibraryState) {
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val width = LocalConfiguration.current.screenWidthDp.dp
@@ -362,7 +362,7 @@ private fun Filmstrip(assets: List<Asset>, pager: PagerState) {
     ) {
         itemsIndexed(assets, key = { _, a -> a.key }) { i, a ->
             val currentItem = i == pager.currentPage
-            val bmp = rememberThumbnail(a, 64.dp)
+            val bmp = rememberEditedThumbnail(a, state.editOf(a), state.traitsOf(a), 64.dp)
             Box(
                 Modifier.padding(horizontal = if (currentItem) 6.dp else 0.dp)
                     .width(if (currentItem) 44.dp else 30.dp).fillMaxHeight()

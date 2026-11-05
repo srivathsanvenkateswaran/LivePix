@@ -27,6 +27,14 @@ class EditStore(context: Context) {
         put("lighting", e.lighting)
         put("li", e.lightingIntensity.toDouble())
         put("fav", e.favorite)
+        if (e.adjust.isNotEmpty()) put("adj", JSONObject().apply { e.adjust.forEach { (k, v) -> put(k, v.toDouble()) } })
+        if (e.filter != "ORIGINAL") { put("flt", e.filter); put("fli", e.filterIntensity.toDouble()) }
+        e.crop?.let { c ->
+            put("crop", JSONObject().apply {
+                put("q", c.quarterTurns); put("f", c.flip); put("s", c.straighten.toDouble())
+                put("l", c.left.toDouble()); put("t", c.top.toDouble()); put("r", c.right.toDouble()); put("b", c.bottom.toDouble())
+            })
+        }
     }.toString()
 
     private fun decode(s: String): AssetEdit = runCatching {
@@ -42,6 +50,15 @@ class EditStore(context: Context) {
             lighting = o.optString("lighting", "NATURAL"),
             lightingIntensity = o.optDouble("li", 0.5).toFloat(),
             favorite = o.optBoolean("fav"),
+            adjust = o.optJSONObject("adj")?.let { a -> a.keys().asSequence().associateWith { a.getDouble(it).toFloat() } }.orEmpty(),
+            filter = o.optString("flt", "ORIGINAL"),
+            filterIntensity = o.optDouble("fli", 1.0).toFloat(),
+            crop = o.optJSONObject("crop")?.let { c ->
+                com.srivathsan.livepix.media.CropSpec(
+                    c.optInt("q"), c.optBoolean("f"), c.optDouble("s").toFloat(),
+                    c.optDouble("l", 0.0).toFloat(), c.optDouble("t", 0.0).toFloat(), c.optDouble("r", 1.0).toFloat(), c.optDouble("b", 1.0).toFloat(),
+                )
+            },
         )
     }.getOrDefault(AssetEdit())
 }

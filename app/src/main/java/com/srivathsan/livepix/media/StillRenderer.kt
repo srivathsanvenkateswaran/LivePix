@@ -22,7 +22,8 @@ object StillRenderer {
 
     /** Whether this asset needs our renderer instead of showing the file as-is. */
     fun needsRender(asset: Asset, traits: Traits?, edit: AssetEdit): Boolean =
-        (asset.isLive && (edit.keyFrameUs != null || edit.effect == LiveEffect.LONG_EXPOSURE)) ||
+        edit.hasImageEdits ||
+            (asset.isLive && (edit.keyFrameUs != null || edit.effect == LiveEffect.LONG_EXPOSURE)) ||
             (traits?.hasDepth == true && (edit.portrait || edit.lighting != PortraitLighting.NATURAL.name))
 
     fun cacheKey(asset: Asset, edit: AssetEdit, maxSide: Int) = "${asset.versionKey}:$maxSide:${edit.copy(favorite = false, muted = false)}"
@@ -85,8 +86,19 @@ object StillRenderer {
                 }
             }
         }
+        result = applyImageEdits(result, edit)
         renderCache.put(key, result)
         return result
+    }
+
+    /** Adjust, Filters, then Crop: the last stage of the pipeline, shared with the editor preview. */
+    fun applyImageEdits(src: Bitmap, edit: AssetEdit): Bitmap {
+        var out = src
+        val values = edit.adjust.mapNotNull { (k, v) -> runCatching { Adjust.valueOf(k) }.getOrNull()?.let { it to v } }.toMap()
+        val filter = runCatching { PhotoFilter.valueOf(edit.filter) }.getOrDefault(PhotoFilter.ORIGINAL)
+        if (!ToneEngine.isIdentity(values, filter, edit.filterIntensity)) out = ToneEngine.apply(out, values, filter, edit.filterIntensity)
+        edit.crop?.takeUnless { it.isIdentity }?.let { out = it.apply(out) }
+        return out
     }
 
     /** Long Exposure is slow to compute, so it is cached on disk per movie. */

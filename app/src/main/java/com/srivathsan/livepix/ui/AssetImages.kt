@@ -35,9 +35,31 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.srivathsan.livepix.data.Asset
+import com.srivathsan.livepix.data.AssetEdit
+import com.srivathsan.livepix.data.Traits
+import com.srivathsan.livepix.media.StillRenderer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.srivathsan.livepix.media.ImageLoader
 import com.srivathsan.livepix.ui.theme.Ios
 import com.srivathsan.livepix.ui.theme.IosType
+
+/**
+ * Thumbnail that reflects edits, like Photos: crops, filters, Portrait blur and chosen key photos
+ * show in the grid. Unedited items use MediaStore's thumbnail.
+ */
+@Composable
+fun rememberEditedThumbnail(asset: Asset, edit: AssetEdit, traits: Traits?, sizeDp: Dp): Bitmap? {
+    val plain = rememberThumbnail(asset, sizeDp)
+    if (!StillRenderer.needsRender(asset, traits, edit)) return plain
+    val context = LocalContext.current
+    val side = 512
+    var bmp by remember(asset.versionKey, edit) { mutableStateOf(StillRenderer.cached(asset, edit, side)) }
+    LaunchedEffect(asset.versionKey, edit) {
+        if (bmp == null) bmp = withContext(Dispatchers.Default) { runCatching { StillRenderer.render(context, asset, traits, edit, side) }.getOrNull() }
+    }
+    return bmp ?: plain
+}
 
 /** MediaStore thumbnail for an asset, sized for the grid cell. */
 @Composable
@@ -67,9 +89,11 @@ fun AssetThumbnail(
     selected: Boolean? = null,
     label: String? = null,
     imageModifier: Modifier = Modifier,
+    edit: AssetEdit? = null,
+    traits: Traits? = null,
 ) {
     val c = Ios.colors
-    val bmp = rememberThumbnail(asset, cellSize)
+    val bmp = if (edit != null) rememberEditedThumbnail(asset, edit, traits, cellSize) else rememberThumbnail(asset, cellSize)
     Box(modifier.background(c.fill)) {
         if (bmp != null) {
             Image(

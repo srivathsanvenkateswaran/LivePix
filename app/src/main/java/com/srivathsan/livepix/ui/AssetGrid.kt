@@ -192,6 +192,8 @@ fun AssetGrid(
                     favorite = edit.favorite,
                     selected = selection?.let { asset.key in it },
                     label = badge?.invoke(asset),
+                    edit = edit,
+                    traits = state.traitsOf(asset),
                     imageModifier = Modifier.sharedAsset(asset.key),
                     modifier = Modifier.aspectRatio(1f).animateItem().combinedClickable(
                         onClick = {

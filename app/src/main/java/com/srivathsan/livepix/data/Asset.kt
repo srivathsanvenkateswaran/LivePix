@@ -81,11 +81,20 @@ data class AssetEdit(
     val lighting: String = "NATURAL",
     val lightingIntensity: Float = 0.5f,
     val favorite: Boolean = false,
+    /** Adjust tool values by [com.srivathsan.livepix.media.Adjust] name, -100..100. */
+    val adjust: Map<String, Float> = emptyMap(),
+    val filter: String = "ORIGINAL",
+    val filterIntensity: Float = 1f,
+    val crop: com.srivathsan.livepix.media.CropSpec? = null,
 ) {
+    /** Adjust, Filters or Crop change the picture. */
+    val hasImageEdits: Boolean
+        get() = adjust.values.any { it != 0f } || filter != "ORIGINAL" || crop?.isIdentity == false
+
     val liveEnabled: Boolean get() = effect != LiveEffect.OFF
 
     /** True when the photo looks different from the original file. */
     fun isModified(asset: Asset, traits: Traits?): Boolean =
-        keyFrameUs != null || effect == LiveEffect.LONG_EXPOSURE ||
+        keyFrameUs != null || effect == LiveEffect.LONG_EXPOSURE || hasImageEdits ||
             (traits?.hasDepth == true && (portrait || lighting != "NATURAL"))
 }

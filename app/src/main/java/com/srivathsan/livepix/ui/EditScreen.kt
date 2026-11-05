@@ -37,6 +37,14 @@ import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Camera
+import androidx.compose.material.icons.outlined.AspectRatio
+import androidx.compose.material.icons.outlined.Crop
+import androidx.compose.material.icons.outlined.FilterVintage
+import androidx.compose.material.icons.outlined.Flip
+import androidx.compose.material.icons.outlined.Rotate90DegreesCcw
+import androidx.compose.material.icons.outlined.Tune
+import com.srivathsan.livepix.media.CropSpec
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -91,7 +99,7 @@ private const val STRIP_FRAMES = 12
 /** iPhone's depth control stops. */
 private val F_STOPS = listOf(1.4f, 1.6f, 1.8f, 2f, 2.2f, 2.5f, 2.8f, 3.2f, 3.5f, 4f, 4.5f, 5f, 5.6f, 6.3f, 7.1f, 8f, 9f, 10f, 11f, 13f, 14f, 16f)
 
-private enum class EditTab(val label: String) { LIVE("Live"), PORTRAIT("Portrait") }
+private enum class EditTab(val label: String) { LIVE("Live"), PORTRAIT("Portrait"), ADJUST("Adjust"), FILTERS("Filters"), CROP("Crop") }
 
 private fun fLabel(f: Float) = if (f % 1f == 0f) "ƒ ${f.toInt()}" else "ƒ $f"
 
@@ -110,8 +118,11 @@ fun EditScreen(
     val tabs = buildList {
         if (asset.isLive) add(EditTab.LIVE)
         if (traits?.hasDepth == true) add(EditTab.PORTRAIT)
+        add(EditTab.ADJUST); add(EditTab.FILTERS); add(EditTab.CROP)
     }
-    var tab by remember { mutableStateOf(tabs.firstOrNull()) }
+    var tab by remember { mutableStateOf(tabs.first()) }
+    var cropAspect by remember { mutableStateOf<Float?>(null) }
+    var aspectMenu by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf(initial) }
     var showDepthDial by remember { mutableStateOf(true) }
 
@@ -120,18 +131,37 @@ fun EditScreen(
     var scrubFrame by remember { mutableStateOf<Bitmap?>(null) }
 
     val original by produceState<Bitmap?>(null, asset.key) { value = ImageLoader.full(context, asset.uri, PREVIEW_SIDE) }
+    // Two stages: the Live/Portrait base (slow, recomputed only when those settings change) and
+    // Adjust/Filters/Crop on top (fast enough to follow a dial).
+    var base by remember { mutableStateOf<Bitmap?>(null) }
     var rendered by remember { mutableStateOf<Bitmap?>(null) }
     var rendering by remember { mutableStateOf(false) }
     LaunchedEffect(asset.key) {
-        snapshotFlow { draft }.conflate().collectLatest { d ->
-            if (StillRenderer.needsRender(asset, traits, d)) {
+        snapshotFlow { draft.copy(adjust = emptyMap(), filter = "ORIGINAL", filterIntensity = 1f, crop = null, favorite = false, muted = false) }
+            .distinctUntilChanged().conflate().collectLatest { be ->
                 rendering = true
-                rendered = withContext(Dispatchers.Default) { StillRenderer.render(context, asset, traits, d, PREVIEW_SIDE) }
+                base = withContext(Dispatchers.Default) {
+                    if (StillRenderer.needsRender(asset, traits, be)) StillRenderer.render(context, asset, traits, be, PREVIEW_SIDE)
+                    else ImageLoader.decode(context, asset.uri, PREVIEW_SIDE, software = true)
+                }
                 rendering = false
-            } else rendered = null
+            }
+    }
+    LaunchedEffect(asset.key) {
+        snapshotFlow { Triple(base, draft, tab == EditTab.CROP) }.conflate().collectLatest { (b, d, cropping) ->
+            if (b == null) return@collectLatest
+            rendered = withContext(Dispatchers.Default) {
+                val toned = StillRenderer.applyImageEdits(b, d.copy(crop = null))
+                val c = d.crop
+                when {
+                    c == null -> toned
+                    cropping -> c.oriented(toned)
+                    else -> c.apply(toned)
+                }
+            }
         }
     }
-    val shown = scrubFrame?.takeIf { scrubUs != null } ?: rendered ?: original
+    val shown = scrubFrame?.takeIf { scrubUs != null } ?: rendered ?: base ?: original
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         Column(Modifier.fillMaxSize()) {
@@ -161,7 +191,39 @@ fun EditScreen(
                             showDepthDial = !showDepthDial || !draft.portrait
                         }
                     }
-                    null -> Text("Edit", style = IosType.headline, color = Color.White)
+                    EditTab.CROP -> {
+                        val crop = draft.crop ?: CropSpec()
+                        RoundButton(Icons.Outlined.Rotate90DegreesCcw, "Rotate", Color(0xFF3A3A3C), Color.White, size = 34.dp) {
+                            // Rotating changes the frame's shape, so the crop starts over.
+                            draft = draft.copy(crop = crop.copy(quarterTurns = (crop.quarterTurns + 3) % 4, left = 0f, top = 0f, right = 1f, bottom = 1f))
+                            cropAspect = null
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        RoundButton(Icons.Outlined.Flip, "Flip", Color(0xFF3A3A3C), Color.White, size = 34.dp) {
+                            draft = draft.copy(crop = crop.copy(flip = !crop.flip, left = 1f - crop.right, right = 1f - crop.left))
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Box {
+                            RoundButton(Icons.Outlined.AspectRatio, "Aspect", Color(0xFF3A3A3C), if (cropAspect != null) ios.yellow else Color.White, size = 34.dp) {
+                                aspectMenu = true
+                            }
+                            IosMenu(aspectMenu, onDismiss = { aspectMenu = false }) {
+                                CROP_ASPECTS.forEach { (label, ratio) ->
+                                    MenuRow(label, checked = ratio == cropAspect) {
+                                        aspectMenu = false
+                                        val img = rendered
+                                        val imageAspect = if (img != null) img.width.toFloat() / img.height else 1f
+                                        cropAspect = ratio
+                                        if (ratio != null) {
+                                            val r = CropSpec.centred(if (ratio < 0) imageAspect else ratio, imageAspect)
+                                            draft = draft.copy(crop = crop.copy(left = r.left, top = r.top, right = r.right, bottom = r.bottom))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else -> Text(tab.label, style = IosType.headline, color = Color.White)
                 }
                 Spacer(Modifier.weight(1f))
                 val changed = draft != initial
@@ -198,6 +260,9 @@ fun EditScreen(
                     ) {
                         Image(bmp.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
                         focusMark?.let { FocusSquare(it, ios.yellow) { focusMark = null } }
+                        if (tab == EditTab.CROP) {
+                            CropOverlay(draft.crop ?: CropSpec(), cropAspect?.let { if (it < 0) ratio else it }, ratio) { draft = draft.copy(crop = it) }
+                        }
                     }
                 }
                 if (rendering) {
@@ -225,10 +290,9 @@ fun EditScreen(
                         accent = ios.yellow,
                     )
                     EditTab.PORTRAIT -> PortraitPanel(draft, showDepthDial, ios.yellow) { draft = it }
-                    null -> Text(
-                        "This photo has no Live or Portrait data.",
-                        style = IosType.subheadline, color = Color.White.copy(alpha = 0.6f), modifier = Modifier.align(Alignment.Center),
-                    )
+                    EditTab.ADJUST -> AdjustPanel(draft, base, ios.yellow) { draft = it }
+                    EditTab.FILTERS -> FiltersPanel(draft, base, ios.yellow) { draft = it }
+                    EditTab.CROP -> CropPanel(draft, ios.yellow) { draft = it }
                 }
             }
 
@@ -245,7 +309,13 @@ fun EditScreen(
                             modifier = Modifier.clickable { tab = t; scrubUs = null },
                         ) {
                             Icon(
-                                if (t == EditTab.LIVE) LiveIcon else Icons.Outlined.Camera, t.label,
+                                when (t) {
+                                    EditTab.LIVE -> LiveIcon
+                                    EditTab.PORTRAIT -> Icons.Outlined.Camera
+                                    EditTab.ADJUST -> Icons.Outlined.Tune
+                                    EditTab.FILTERS -> Icons.Outlined.FilterVintage
+                                    EditTab.CROP -> Icons.Outlined.Crop
+                                }, t.label,
                                 tint = if (active) Color.White else Color.White.copy(alpha = 0.5f), modifier = Modifier.size(26.dp),
                             )
                             Text(t.label, style = IosType.caption.copy(fontWeight = FontWeight.SemiBold),
