@@ -104,7 +104,7 @@ fun BounceLayer(uri: Uri, modifier: Modifier = Modifier) {
         withContext(Dispatchers.IO) {
             LiveMedia(context, uri).use { m ->
                 durationUs = m.durationUs.coerceAtLeast(500_000)
-                frames = m.frames(36, 1080, Bitmap.Config.RGB_565).map { it.second }
+                frames = m.frames(24, 720, Bitmap.Config.RGB_565).map { it.second }
             }
         }
     }
@@ -119,7 +119,11 @@ fun BounceLayer(uri: Uri, modifier: Modifier = Modifier) {
             index = (index + dir).coerceIn(frames.indices)
         }
     }
-    frames.getOrNull(index)?.let {
-        Image(it.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = modifier.fillMaxSize())
+    val frame = frames.getOrNull(index)
+    if (frame != null) {
+        Image(frame.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = modifier.fillMaxSize())
+    } else {
+        // Frames take a few seconds to extract; keep the photo moving meanwhile.
+        LiveVideoLayer(uri, loop = true, withSound = false, onEnded = {}, modifier = modifier)
     }
 }
