@@ -8,11 +8,12 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.srivathsan.livepix"
+        // Store identity; the Kotlin package stays com.srivathsan.livepix (JNI symbol names depend on it).
+        applicationId = "io.github.srivathsanvenkateswaran.livepix"
         minSdk = 30
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         externalNativeBuild { cmake { arguments += "-DANDROID_STL=c++_static" } }
@@ -70,8 +71,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
 
-    implementation("io.coil-kt.coil3:coil-compose:3.6.3")
-    implementation("io.coil-kt.coil3:coil-video:3.6.3")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
