@@ -292,6 +292,7 @@ private fun ViewerChrome(
                     MenuRow(if (hidden) "Unhide" else "Hide", icon = if (hidden) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff) {
                         menu = false; shared.setHidden(listOf(asset), !hidden)
                     }
+                    MenuRow("Slideshow") { menu = false; shared.slideshow(assets, asset.key) }
                     MenuRow("Save a Copy") { menu = false; actions.onSaveCopy(asset) }
                     if (asset.liveVideo != null) MenuRow("Export as Motion Photo") { menu = false; actions.onMotionPhoto(asset) }
                     MenuRow("Share Original File") { menu = false; actions.onShareOriginal(asset) }

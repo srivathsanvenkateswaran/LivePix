@@ -11,6 +11,8 @@ class AssetActions(
     val setHidden: (List<Asset>, Boolean) -> Unit,
     val trash: (List<Asset>) -> Unit,
     val open: (Asset, Source) -> Unit,
+    /** Plays [assets] full screen, starting at the item with the given key if there is one. */
+    val slideshow: (List<Asset>, String?) -> Unit,
     val adjustDate: (List<Asset>) -> Unit,
     val adjustLocation: (List<Asset>) -> Unit,
 )

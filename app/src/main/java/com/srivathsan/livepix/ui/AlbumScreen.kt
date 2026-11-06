@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -101,6 +102,10 @@ fun AlbumScreen(
                 }
                 if (assets.isNotEmpty()) {
                     GlassTextButton(if (selection == null) "Select" else "Cancel") { selection = if (selection == null) emptySet() else null }
+                }
+                if (assets.size > 1 && selection == null) {
+                    val actions = LocalAssetActions.current
+                    GlassIconButton(Icons.Outlined.PlayArrow, "Play slideshow") { actions.slideshow(assets, null) }
                 }
                 if (albumActions != null && selection == null) {
                     Box {

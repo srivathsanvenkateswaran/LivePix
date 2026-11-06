@@ -67,6 +67,7 @@ sealed interface Route {
     data class Edit(val key: String, val source: Source) : Route
     data object Trash : Route
     data object Places : Route
+    data class Slideshow(val keys: List<String>, val startKey: String? = null, val title: String? = null, val subtitle: String? = null) : Route
 }
 
 private enum class Tab { LIBRARY, COLLECTIONS, SEARCH }
@@ -180,6 +181,7 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
         },
         trash = ::trash,
         open = { a, s -> stack.add(Route.Viewer(s, a.key)) },
+        slideshow = { list, start -> stack.add(Route.Slideshow(list.map { it.key }, start)) },
         adjustDate = { adjustingDate = it },
         adjustLocation = { adjustingLocation = it },
     )
@@ -324,6 +326,14 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
                             onRecover = { launch(vm.restoreRequest(it)) },
                             onDeleteForever = { launch(vm.deleteRequest(it)) },
                         )
+                    }
+                    is Route.Slideshow -> {
+                        val assets = remember(route.keys) {
+                            val byKey = state.allAssets.associateBy { it.key }
+                            route.keys.mapNotNull { byKey[it] }
+                        }
+                        val showAll = route.title?.let { t -> { stack[stack.lastIndex] = Route.Collection(Source.Keys(t, route.keys)) } }
+                        SlideshowScreen(assets, state, route.title, route.subtitle, route.startKey, onClose = { stack.removeLastOrNull() }, onShowAll = showAll)
                     }
                     Route.Places -> PlacesScreen(state, onBack = { stack.removeLastOrNull() }, onOpenSource = { stack.add(Route.Collection(it)) })
                     is Route.Viewer -> {
