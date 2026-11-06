@@ -16,6 +16,7 @@ import com.srivathsan.livepix.data.TraitScanner
 import com.srivathsan.livepix.data.LibraryStore
 import com.srivathsan.livepix.data.UserAlbum
 import com.srivathsan.livepix.data.Traits
+import com.srivathsan.livepix.data.hasMediaLocation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,7 +47,7 @@ data class LibraryState(
 
 class GalleryViewModel(app: Application) : AndroidViewModel(app) {
     private val editStore = EditStore(app)
-    private val scanner = TraitScanner(app)
+    private var scanner = TraitScanner(app)
     private val library = LibraryStore(app)
     private val _state = MutableStateFlow(
         LibraryState(edits = editStore.all(), albums = library.albums, hidden = library.hidden),
@@ -66,6 +67,7 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             val ctx = getApplication<Application>()
+            if (scanner.hasLocationAccess != hasMediaLocation(ctx)) scanner = TraitScanner(ctx)
             val raw = withContext(Dispatchers.IO) { MediaRepository.load(ctx) }
             val trashed = withContext(Dispatchers.IO) { MediaRepository.loadTrashed(ctx) }
             val known = scanner.cached()
@@ -73,8 +75,8 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
                 it.copy(loaded = true, allAssets = MediaRepository.pairByContent(raw, known), traits = known, trashed = trashed)
             }
 
-            // Scan what needs scanning: HEIC/JPEG stills for depth + content id, short movies for content id.
-            val todo = raw.filter { (it.isHeif || it.mime == "image/jpeg" || MediaRepository.isLiveCandidate(it)) && it.versionKey !in known }
+            // Scan what needs scanning: stills for depth, content id and GPS, movies for content id and GPS.
+            val todo = raw.filter { (it.isHeif || it.mime == "image/jpeg" || it.isVideo) && it.versionKey !in known }
             if (todo.isEmpty()) return@launch
             _state.update { it.copy(scanning = true) }
             val found = HashMap(known)

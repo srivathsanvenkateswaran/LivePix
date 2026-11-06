@@ -8,6 +8,7 @@
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
     <!-- Added by Media3; LivePix only plays local files and never uses the network. -->
     <uses-permission
         android:name="android.permission.ACCESS_NETWORK_STATE"

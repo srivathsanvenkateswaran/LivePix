@@ -28,6 +28,8 @@ data class Asset(
     val embeddedMovie: MotionPhoto.Location? = null,
     /** For items in Recently Deleted: when Android removes them for good (epoch ms). */
     val expiresAt: Long = 0,
+    /** The file's own capture time, set when the user has adjusted [dateTaken]. */
+    val originalDate: Long? = null,
 ) {
     val key: String get() = (if (isVideo) "v" else "i") + id
     val isLive: Boolean get() = liveVideo != null || embeddedMovie != null
@@ -55,7 +57,13 @@ data class Traits(
     val motionLength: Long? = null,
     /** Where the still sits in the Live movie, when the file records it. */
     val presentationUs: Long? = null,
+    val lat: Double? = null,
+    val lng: Double? = null,
+    /** The location was set by the user rather than read from the file. */
+    val locationEdited: Boolean = false,
 ) {
+    val point: GeoPoint? get() = if (lat != null && lng != null) GeoPoint(lat, lng) else null
+
     val motion: MotionPhoto.Location? get() =
         if (motionOffset != null && motionLength != null) MotionPhoto.Location(motionOffset, motionLength) else null
 }

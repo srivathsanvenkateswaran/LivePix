@@ -3,6 +3,7 @@ package com.srivathsan.livepix.media
 import android.content.Context
 import androidx.exifinterface.media.ExifInterface
 import com.srivathsan.livepix.data.Asset
+import com.srivathsan.livepix.data.openOriginal
 import java.io.FileInputStream
 import kotlin.math.roundToInt
 
@@ -19,7 +20,7 @@ data class PhotoInfo(
 ) {
     companion object {
         fun read(context: Context, asset: Asset): PhotoInfo = runCatching {
-            context.contentResolver.openFileDescriptor(asset.uri, "r")!!.use { pfd ->
+            context.contentResolver.openOriginal(asset.uri)!!.use { pfd ->
                 val src = ChannelByteSource.of(FileInputStream(pfd.fileDescriptor))
                 if (asset.isVideo) {
                     val meta = AppleMetadata.quickTimeMetadata(src)
@@ -29,7 +30,7 @@ data class PhotoInfo(
                 }
                 val heif = HeifParser.parse(src)
                 val exif = (if (heif != null) AppleMetadata.heifExif(src, heif) else null)
-                    ?: context.contentResolver.openInputStream(asset.uri)!!.use { ExifInterface(it) }
+                    ?: FileInputStream(pfd.fileDescriptor).let { it.channel.position(0); ExifInterface(it) }
                 fromExif(exif)
             }
         }.getOrDefault(PhotoInfo())

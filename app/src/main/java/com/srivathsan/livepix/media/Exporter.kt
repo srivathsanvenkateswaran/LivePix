@@ -17,6 +17,7 @@ import com.srivathsan.livepix.data.Asset
 import com.srivathsan.livepix.data.AssetEdit
 import com.srivathsan.livepix.data.LiveEffect
 import com.srivathsan.livepix.data.Traits
+import com.srivathsan.livepix.data.openOriginal
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
@@ -50,11 +51,11 @@ object Exporter {
 
     private fun copyExif(context: Context, asset: Asset, target: File) {
         val source: ExifInterface = runCatching {
-            context.contentResolver.openFileDescriptor(asset.uri, "r")!!.use { pfd ->
+            context.contentResolver.openOriginal(asset.uri)!!.use { pfd ->
                 val src = ChannelByteSource.of(FileInputStream(pfd.fileDescriptor))
                 val heif = HeifParser.parse(src)
                 if (heif != null) AppleMetadata.heifExif(src, heif)
-                else context.contentResolver.openInputStream(asset.uri)!!.use { ExifInterface(it) }
+                else FileInputStream(pfd.fileDescriptor).let { it.channel.position(0); ExifInterface(it) }
             }
         }.getOrNull() ?: return
         runCatching {
