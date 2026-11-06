@@ -183,7 +183,7 @@ fun ViewerScreen(
         }
     }
 
-    if (showInfo) InfoSheet(current, state.traitsOf(current), state.editOf(current)) { showInfo = false }
+    if (showInfo) InfoSheet(current, state.traitsOf(current), state.editOf(current), state.placeOf(current)) { showInfo = false }
 }
 
 @Composable

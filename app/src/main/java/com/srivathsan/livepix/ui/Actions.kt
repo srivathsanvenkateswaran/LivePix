@@ -11,6 +11,8 @@ class AssetActions(
     val setHidden: (List<Asset>, Boolean) -> Unit,
     val trash: (List<Asset>) -> Unit,
     val open: (Asset, Source) -> Unit,
+    val adjustDate: (List<Asset>) -> Unit,
+    val adjustLocation: (List<Asset>) -> Unit,
 )
 
 val LocalAssetActions = staticCompositionLocalOf<AssetActions> { error("AssetActions not provided") }

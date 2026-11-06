@@ -88,6 +88,8 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
     // Pending "Add to Album" / "New Album" flows, holding the photos they apply to.
     var addingToAlbum by remember { mutableStateOf<List<Asset>?>(null) }
     var newAlbumFor by remember { mutableStateOf<List<Asset>?>(null) }
+    var adjustingDate by remember { mutableStateOf<List<Asset>?>(null) }
+    var adjustingLocation by remember { mutableStateOf<List<Asset>?>(null) }
     // Hidden and Recently Deleted unlock once per visit to the app.
     var unlocked by remember { mutableStateOf(false) }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
@@ -177,6 +179,8 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
         },
         trash = ::trash,
         open = { a, s -> stack.add(Route.Viewer(s, a.key)) },
+        adjustDate = { adjustingDate = it },
+        adjustLocation = { adjustingLocation = it },
     )
 
     val viewerActions = { source: Source ->
@@ -365,6 +369,24 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
             },
             onDismiss = { addingToAlbum = null },
         )
+    }
+    CompositionLocalProvider(LocalAssetActions provides assetActions) {
+        adjustingDate?.let { list ->
+            AdjustDateSheet(
+                list,
+                onAdjust = { vm.adjustDate(list, it); adjustingDate = null; selection = null },
+                onRevert = { vm.revertDate(list); adjustingDate = null; selection = null },
+                onDismiss = { adjustingDate = null },
+            )
+        }
+        adjustingLocation?.let { list ->
+            AdjustLocationSheet(
+                list, state,
+                onPick = { vm.setLocation(list, it); adjustingLocation = null; selection = null },
+                onRevert = { vm.revertLocation(list); adjustingLocation = null; selection = null },
+                onDismiss = { adjustingLocation = null },
+            )
+        }
     }
     newAlbumFor?.let { list ->
         TextPromptDialog(

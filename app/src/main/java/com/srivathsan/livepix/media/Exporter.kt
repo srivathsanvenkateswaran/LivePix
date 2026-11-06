@@ -22,6 +22,8 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.nio.ByteBuffer
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 /** Writes edited photos out as ordinary JPEGs (or Motion Photos) without touching originals. */
 object Exporter {
@@ -37,6 +39,11 @@ object Exporter {
         ExifInterface.TAG_GPS_ALTITUDE_REF,
     )
 
+    private val GPS_TAGS = listOf(
+        ExifInterface.TAG_GPS_LATITUDE, ExifInterface.TAG_GPS_LATITUDE_REF, ExifInterface.TAG_GPS_LONGITUDE,
+        ExifInterface.TAG_GPS_LONGITUDE_REF, ExifInterface.TAG_GPS_ALTITUDE, ExifInterface.TAG_GPS_ALTITUDE_REF,
+    )
+
     /** The edited still at full resolution, encoded as JPEG with the original's Exif. */
     fun renderJpeg(context: Context, asset: Asset, traits: Traits?, edit: AssetEdit): File {
         val bmp = if (StillRenderer.needsRender(asset, traits, edit)) StillRenderer.render(context, asset, traits, edit, FULL_SIZE)
@@ -45,22 +52,33 @@ object Exporter {
         val dir = File(context.cacheDir, "export").apply { mkdirs() }
         val file = File(dir, asset.baseName.uppercase() + (if (StillRenderer.needsRender(asset, traits, edit)) "_LivePix" else "") + ".jpg")
         file.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 94, it) }
-        copyExif(context, asset, file)
+        copyExif(context, asset, traits, file)
         return file
     }
 
-    private fun copyExif(context: Context, asset: Asset, target: File) {
-        val source: ExifInterface = runCatching {
+    private fun copyExif(context: Context, asset: Asset, traits: Traits?, target: File) {
+        val source: ExifInterface? = runCatching {
             context.contentResolver.openOriginal(asset.uri)!!.use { pfd ->
                 val src = ChannelByteSource.of(FileInputStream(pfd.fileDescriptor))
                 val heif = HeifParser.parse(src)
                 if (heif != null) AppleMetadata.heifExif(src, heif)
                 else FileInputStream(pfd.fileDescriptor).let { it.channel.position(0); ExifInterface(it) }
             }
-        }.getOrNull() ?: return
+        }.getOrNull()
         runCatching {
             val out = ExifInterface(target)
-            for (tag in COPIED_TAGS) source.getAttribute(tag)?.let { out.setAttribute(tag, it) }
+            if (source != null) for (tag in COPIED_TAGS) source.getAttribute(tag)?.let { out.setAttribute(tag, it) }
+            // Dates and locations adjusted in the app go into the copy.
+            if (asset.originalDate != null) {
+                val stamp = SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US).format(asset.dateTaken)
+                out.setAttribute(ExifInterface.TAG_DATETIME_ORIGINAL, stamp)
+                out.setAttribute(ExifInterface.TAG_DATETIME, stamp)
+            }
+            if (traits?.locationEdited == true) {
+                val point = traits.point
+                if (point != null) out.setLatLong(point.lat, point.lng)
+                else GPS_TAGS.forEach { out.setAttribute(it, null) }
+            }
             out.setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
             out.setAttribute(ExifInterface.TAG_SOFTWARE, "LivePix")
             out.saveAttributes()

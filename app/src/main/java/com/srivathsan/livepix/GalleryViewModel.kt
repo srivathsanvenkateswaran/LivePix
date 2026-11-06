@@ -10,7 +10,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.srivathsan.livepix.data.Asset
 import com.srivathsan.livepix.data.AssetEdit
+import com.srivathsan.livepix.data.City
 import com.srivathsan.livepix.data.EditStore
+import com.srivathsan.livepix.data.Geo
+import com.srivathsan.livepix.data.GeoIndex
+import com.srivathsan.livepix.data.GeoPoint
 import com.srivathsan.livepix.data.MediaRepository
 import com.srivathsan.livepix.data.TraitScanner
 import com.srivathsan.livepix.data.LibraryStore
@@ -37,11 +41,23 @@ data class LibraryState(
     val hidden: Set<String> = emptySet(),
     /** Recently Deleted, from Android's trash. */
     val trashed: List<Asset> = emptyList(),
+    /** Offline place names; null until loaded. */
+    val geo: GeoIndex? = null,
+    val locationOverrides: Map<String, GeoPoint?> = emptyMap(),
 ) {
     /** The library as shown: everything except hidden items. */
     val assets: List<Asset> by lazy { if (hidden.isEmpty()) allAssets else allAssets.filter { it.key !in hidden } }
 
-    fun traitsOf(a: Asset): Traits? = traits[a.versionKey]
+    fun traitsOf(a: Asset): Traits? {
+        val t = traits[a.versionKey]
+        if (a.key !in locationOverrides) return t
+        val p = locationOverrides[a.key]
+        return (t ?: Traits()).copy(lat = p?.lat, lng = p?.lng, locationEdited = true)
+    }
+
+    /** The city nearest where the item was taken. */
+    fun placeOf(a: Asset): City? = traitsOf(a)?.point?.let { geo?.nearest(it.lat, it.lng) }
+
     fun editOf(a: Asset): AssetEdit = edits[a.key] ?: AssetEdit()
 }
 
@@ -50,7 +66,7 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
     private var scanner = TraitScanner(app)
     private val library = LibraryStore(app)
     private val _state = MutableStateFlow(
-        LibraryState(edits = editStore.all(), albums = library.albums, hidden = library.hidden),
+        LibraryState(edits = editStore.all(), albums = library.albums, hidden = library.hidden, locationOverrides = library.locations),
     )
     val state: StateFlow<LibraryState> = _state.asStateFlow()
 
@@ -61,6 +77,10 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         app.contentResolver.registerContentObserver(MediaStore.Files.getContentUri("external"), true, observer)
+        viewModelScope.launch(Dispatchers.IO) {
+            val geo = Geo.index(app)
+            _state.update { it.copy(geo = geo) }
+        }
     }
 
     fun refresh() {
@@ -72,7 +92,7 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
             val trashed = withContext(Dispatchers.IO) { MediaRepository.loadTrashed(ctx) }
             val known = scanner.cached()
             _state.update {
-                it.copy(loaded = true, allAssets = MediaRepository.pairByContent(raw, known), traits = known, trashed = trashed)
+                it.copy(loaded = true, allAssets = MediaRepository.pairByContent(raw, known).withDates(library.dates), traits = known, trashed = trashed)
             }
 
             // Scan what needs scanning: stills for depth, content id and GPS, movies for content id and GPS.
@@ -85,7 +105,7 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
                     found[a.versionKey] = scanner.scan(a)
                     if (i % 40 == 39 || i == todo.lastIndex) {
                         val snapshot = HashMap(found)
-                        _state.update { it.copy(traits = snapshot, allAssets = MediaRepository.pairByContent(raw, snapshot)) }
+                        _state.update { it.copy(traits = snapshot, allAssets = MediaRepository.pairByContent(raw, snapshot).withDates(library.dates)) }
                     }
                 }
                 scanner.persist()
@@ -117,7 +137,30 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteAlbum(albumId: String) { library.deleteAlbum(albumId); syncLibrary() }
     fun setHidden(assets: List<Asset>, hide: Boolean) { library.setHidden(assets.map { it.key }, hide); syncLibrary() }
 
-    private fun syncLibrary() = _state.update { it.copy(albums = library.albums, hidden = library.hidden) }
+    /** Moves the first item to [firstDate]; the others shift by the same amount. */
+    fun adjustDate(assets: List<Asset>, firstDate: Long) {
+        val delta = firstDate - assets.first().dateTaken
+        library.setDates(assets.associate { it.key to it.dateTaken + delta })
+        syncDates()
+    }
+
+    fun revertDate(assets: List<Asset>) { library.clearDates(assets.map { it.key }); syncDates() }
+    fun setLocation(assets: List<Asset>, point: GeoPoint?) { library.setLocation(assets.map { it.key }, point); syncLibrary() }
+    fun revertLocation(assets: List<Asset>) { library.clearLocation(assets.map { it.key }); syncLibrary() }
+
+    private fun syncDates() = _state.update { it.copy(allAssets = it.allAssets.withDates(library.dates)) }
+
+    private fun syncLibrary() = _state.update { it.copy(albums = library.albums, hidden = library.hidden, locationOverrides = library.locations) }
+
+    /** Applies adjusted capture times and restores the library's date order. Safe to re-apply. */
+    private fun List<Asset>.withDates(dates: Map<String, Long>): List<Asset> {
+        if (dates.isEmpty() && none { it.originalDate != null }) return this
+        return map { a ->
+            val original = a.originalDate ?: a.dateTaken
+            val adjusted = dates[a.key]
+            a.copy(dateTaken = adjusted ?: original, originalDate = if (adjusted != null) original else null)
+        }.sortedBy { it.dateTaken }
+    }
 
     private fun uris(assets: List<Asset>) = assets.flatMap { listOfNotNull(it.uri, it.liveVideo) }
 

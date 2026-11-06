@@ -1,6 +1,7 @@
 package com.srivathsan.livepix.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.srivathsan.livepix.data.Asset
 import com.srivathsan.livepix.data.AssetEdit
+import com.srivathsan.livepix.data.City
 import com.srivathsan.livepix.data.LiveEffect
 import com.srivathsan.livepix.data.Traits
 import com.srivathsan.livepix.media.PhotoInfo
@@ -37,8 +39,9 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun InfoSheet(asset: Asset, traits: Traits?, edit: AssetEdit, onDismiss: () -> Unit) {
+fun InfoSheet(asset: Asset, traits: Traits?, edit: AssetEdit, place: City?, onDismiss: () -> Unit) {
     val c = Ios.colors
+    val actions = LocalAssetActions.current
     val context = LocalContext.current
     val info by produceState(PhotoInfo(), asset.key) {
         value = withContext(Dispatchers.IO) { PhotoInfo.read(context, asset) }
@@ -50,7 +53,10 @@ fun InfoSheet(asset: Asset, traits: Traits?, edit: AssetEdit, onDismiss: () -> U
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     ) {
         Column(Modifier.padding(horizontal = 18.dp).padding(bottom = 32.dp)) {
-            Text(Format.fullDate(asset.dateTaken), style = IosType.headline, color = c.label)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(Format.fullDate(asset.dateTaken), style = IosType.headline, color = c.label, modifier = Modifier.weight(1f))
+                Text("Adjust", style = IosType.subheadline, color = c.blue, modifier = Modifier.clickable { onDismiss(); actions.adjustDate(listOf(asset)) }.padding(start = 12.dp))
+            }
             Spacer(Modifier.height(4.dp))
             val tags = listOfNotNull(
                 if (asset.isLive) (if (edit.effect == LiveEffect.LIVE) "Live Photo" else edit.effect.label) else null,
@@ -91,7 +97,15 @@ fun InfoSheet(asset: Asset, traits: Traits?, edit: AssetEdit, onDismiss: () -> U
             Spacer(Modifier.height(14.dp))
             InfoRow("File", asset.name)
             InfoRow("Album", asset.folder)
-            info.latLong?.let { InfoRow("Location", "%.5f, %.5f".format(it[0], it[1])) }
+            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                val point = traits?.point
+                Text("Location", style = IosType.subheadline, color = c.secondaryLabel, modifier = Modifier.weight(0.35f))
+                Text(
+                    place?.fullName ?: point?.let { "%.5f, %.5f".format(it.lat, it.lng) } ?: "No Location",
+                    style = IosType.subheadline, color = c.label, modifier = Modifier.weight(0.5f),
+                )
+                Text("Adjust", style = IosType.subheadline, color = c.blue, modifier = Modifier.weight(0.15f).clickable { onDismiss(); actions.adjustLocation(listOf(asset)) })
+            }
             if (asset.isLive) {
                 InfoRow("Live Photo", if (edit.keyFrameUs != null) "Custom key photo" else "Original key photo")
                 InfoRow("Live format", if (asset.isMotionPhoto) "Motion Photo (movie inside the file)" else "HEIC + MOV pair")

@@ -34,7 +34,9 @@ import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.outlined.Favorite
@@ -113,6 +115,8 @@ fun SelectionBar(
                 MenuRow(if (hiddenView) "Unhide" else "Hide", icon = if (hiddenView) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff) {
                     menu = false; actions.setHidden(selected, !hiddenView)
                 }
+                MenuRow("Adjust Date & Time", icon = Icons.Outlined.CalendarMonth) { menu = false; actions.adjustDate(selected) }
+                MenuRow("Adjust Location", icon = Icons.Outlined.Place) { menu = false; actions.adjustLocation(selected) }
                 extra.forEach { e ->
                     MenuRow(e.label, icon = e.icon, color = if (e.destructive) c.red else c.label) { menu = false; e.run(selected) }
                 }
