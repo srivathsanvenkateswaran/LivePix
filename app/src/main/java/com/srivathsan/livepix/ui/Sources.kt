@@ -3,6 +3,7 @@ package com.srivathsan.livepix.ui
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Animation
 import androidx.compose.material.icons.outlined.Camera
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -46,6 +47,7 @@ sealed interface Source {
     data class Type(val type: MediaType) : Source { override val title = type.title }
     data class Search(val query: String) : Source { override val title = query }
     data object Hidden : Source { override val title = "Hidden" }
+    data class Person(val id: String, override val title: String) : Source
     /** A fixed set of items: a place on the map, a memory, a person. */
     data class Keys(override val title: String, val keys: List<String>) : Source
 
@@ -57,6 +59,7 @@ sealed interface Source {
         is Type -> state.assets.filter { matches(type, it, state) }
         is Search -> search(state, query)
         Hidden -> state.allAssets.filter { it.key in state.hidden }
+        is Person -> state.vision?.person(id)?.keys?.toSet()?.let { set -> state.assets.filter { it.key in set } }.orEmpty()
         is Keys -> keys.toSet().let { set -> state.assets.filter { it.key in set } }
     }
 
@@ -87,7 +90,12 @@ sealed interface Source {
             state.albums.firstOrNull { it.name.lowercase() == q }?.let { album ->
                 return state.assets.filter { it.key in album.keys }
             }
+            state.vision?.people?.firstOrNull { it.name?.lowercase()?.startsWith(q) == true }?.let { person ->
+                return Person(person.id, person.title).assets(state)
+            }
+            val labels = state.vision?.let { com.srivathsan.livepix.media.SceneLabels.matches(q, it.labelNames) }.orEmpty()
             return state.assets.filter { a ->
+                state.vision?.labels?.get(a.key)?.any { it in labels } == true ||
                 a.name.lowercase().contains(q) || a.folder.lowercase().contains(q) ||
                     Format.monthYear(a.dateTaken).lowercase().contains(q) ||
                     (state.traitsOf(a)?.model?.lowercase()?.contains(q) == true) ||
@@ -101,5 +109,6 @@ sealed interface Source {
 enum class Utility(val title: String, val icon: ImageVector) {
     HIDDEN("Hidden", Icons.Outlined.VisibilityOff),
     RECENTLY_DELETED("Recently Deleted", Icons.Outlined.Delete),
+    DUPLICATES("Duplicates", Icons.Outlined.ContentCopy),
 }
 

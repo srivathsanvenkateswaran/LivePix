@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.srivathsan.livepix.LibraryState
 import com.srivathsan.livepix.data.Asset
+import com.srivathsan.livepix.data.Memory
 import com.srivathsan.livepix.ui.theme.Ios
 import com.srivathsan.livepix.ui.components.LargeTitleHeader
 import androidx.compose.runtime.derivedStateOf
@@ -61,6 +62,9 @@ fun CollectionsScreen(
     onNewAlbum: () -> Unit,
     onUtility: (Utility) -> Unit,
     onPlaces: () -> Unit,
+    onPeople: () -> Unit,
+    onMemories: () -> Unit,
+    onPlayMemory: (Memory) -> Unit,
 ) {
     val c = Ios.colors
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -81,6 +85,20 @@ fun CollectionsScreen(
                     }
                 }
             }
+
+            if (state.memories.isNotEmpty()) {
+                item { SectionHeader("Memories", onClick = onMemories) }
+                item {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(state.memories, key = { it.id }) { m ->
+                            MemoryCard(m, state, Modifier.width(190.dp).height(270.dp)) { onPlayMemory(m) }
+                        }
+                    }
+                }
+            }
+
+            item { SectionHeader("People & Pets", onClick = onPeople) }
+            item { PeopleRow(state, onOpenSource) }
 
             item { SectionHeader("Places", onClick = onPlaces) }
             item {
@@ -129,8 +147,14 @@ fun CollectionsScreen(
             item { SectionHeader("Utilities", chevron = false) }
             item {
                 GroupedList {
-                    Utility.entries.forEachIndexed { i, u ->
-                        ListRow(u.icon, u.title, null, trailingIcon = Icons.Outlined.Lock, last = i == Utility.entries.lastIndex) { onUtility(u) }
+                    val duplicates = state.vision?.duplicates?.size ?: 0
+                    val shown = Utility.entries.filter { it != Utility.DUPLICATES || duplicates > 0 }
+                    shown.forEachIndexed { i, u ->
+                        val isDuplicates = u == Utility.DUPLICATES
+                        ListRow(
+                            u.icon, u.title, if (isDuplicates) "%,d".format(duplicates) else null,
+                            trailingIcon = if (isDuplicates) null else Icons.Outlined.Lock, last = i == shown.lastIndex,
+                        ) { onUtility(u) }
                     }
                 }
             }

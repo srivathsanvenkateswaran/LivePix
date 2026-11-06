@@ -67,6 +67,9 @@ sealed interface Route {
     data class Edit(val key: String, val source: Source) : Route
     data object Trash : Route
     data object Places : Route
+    data object People : Route
+    data object Memories : Route
+    data object Duplicates : Route
     data class Slideshow(val keys: List<String>, val startKey: String? = null, val title: String? = null, val subtitle: String? = null) : Route
 }
 
@@ -274,9 +277,18 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
                                 onOpenSource = { stack.add(Route.Collection(it)) },
                                 onNewAlbum = { newAlbumFor = emptyList() },
                                 onUtility = { u ->
-                                    stack.add(if (u == Utility.RECENTLY_DELETED) Route.Trash else Route.Collection(Source.Hidden))
+                                    stack.add(
+                                        when (u) {
+                                            Utility.RECENTLY_DELETED -> Route.Trash
+                                            Utility.HIDDEN -> Route.Collection(Source.Hidden)
+                                            Utility.DUPLICATES -> Route.Duplicates
+                                        },
+                                    )
                                 },
                                 onPlaces = { stack.add(Route.Places) },
+                                onPeople = { stack.add(Route.People) },
+                                onMemories = { stack.add(Route.Memories) },
+                                onPlayMemory = { stack.add(Route.Slideshow(it.keys, title = it.title, subtitle = it.subtitle)) },
                             )
                             Tab.SEARCH -> SearchScreen(state, query, { query = it }) { a, s -> stack.add(Route.Viewer(s, a.key)) }
                         }
@@ -315,6 +327,15 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
                                         remove = { vm.removeFromAlbum(s.id, it) },
                                     )
                                 },
+                                personActions = (source as? Source.Person)?.let { s ->
+                                    PersonActions(
+                                        name = { name ->
+                                            val remaining = vm.namePerson(s.id, name)
+                                            stack[stack.lastIndex] = Route.Collection(Source.Person(remaining, name))
+                                        },
+                                        reject = { vm.rejectFromPerson(s.id, it) },
+                                    )
+                                },
                             )
                         }
                         if (source == Source.Hidden) LockGate("Hidden", unlocked, { unlocked = true }, content) else content()
@@ -335,6 +356,15 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
                         val showAll = route.title?.let { t -> { stack[stack.lastIndex] = Route.Collection(Source.Keys(t, route.keys)) } }
                         SlideshowScreen(assets, state, route.title, route.subtitle, route.startKey, onClose = { stack.removeLastOrNull() }, onShowAll = showAll)
                     }
+                    Route.People -> PeopleScreen(state, onBack = { stack.removeLastOrNull() }, onOpenSource = { stack.add(Route.Collection(it)) })
+                    Route.Memories -> MemoriesScreen(
+                        state, onBack = { stack.removeLastOrNull() },
+                        onPlay = { stack.add(Route.Slideshow(it.keys, title = it.title, subtitle = it.subtitle)) },
+                    )
+                    Route.Duplicates -> DuplicatesScreen(
+                        state, onBack = { stack.removeLastOrNull() },
+                        onMerge = { groups -> launch(vm.mergeDuplicates(groups)) },
+                    )
                     Route.Places -> PlacesScreen(state, onBack = { stack.removeLastOrNull() }, onOpenSource = { stack.add(Route.Collection(it)) })
                     is Route.Viewer -> {
                         val assets = remember(state, route.source) { route.source.assets(state) }

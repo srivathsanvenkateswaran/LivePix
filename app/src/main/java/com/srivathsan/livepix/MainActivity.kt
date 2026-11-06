@@ -47,6 +47,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() { super.onStart(); vm.setForeground(true) }
+    override fun onStop() { super.onStop(); vm.setForeground(false) }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         externalUri = intent.viewUri()

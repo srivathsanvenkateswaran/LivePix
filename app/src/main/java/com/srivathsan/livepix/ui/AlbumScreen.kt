@@ -51,6 +51,12 @@ class UserAlbumActions(
     val remove: (List<Asset>) -> Unit,
 )
 
+/** What can be done with a person the app has recognised. */
+class PersonActions(
+    val name: (String) -> Unit,
+    val reject: (List<Asset>) -> Unit,
+)
+
 /** A single collection (folder, user album, media type, Hidden) as a grid. */
 @Composable
 fun AlbumScreen(
@@ -60,6 +66,7 @@ fun AlbumScreen(
     onBack: () -> Unit,
     onOpen: (Asset) -> Unit,
     albumActions: UserAlbumActions? = null,
+    personActions: PersonActions? = null,
 ) {
     val c = Ios.colors
     val assets = remember(state, source) { source.assets(state) }
@@ -67,6 +74,7 @@ fun AlbumScreen(
     var selection by remember { mutableStateOf<Set<String>?>(null) }
     var menu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
+    var naming by remember { mutableStateOf(false) }
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     Box(Modifier.fillMaxSize().background(c.background)) {
@@ -107,6 +115,9 @@ fun AlbumScreen(
                     val actions = LocalAssetActions.current
                     GlassIconButton(Icons.Outlined.PlayArrow, "Play slideshow") { actions.slideshow(assets, null) }
                 }
+                if (personActions != null && selection == null) {
+                    GlassIconButton(Icons.Outlined.Edit, "Name this person") { naming = true }
+                }
                 if (albumActions != null && selection == null) {
                     Box {
                         GlassIconButton(Icons.Outlined.MoreHoriz, "Album options") { menu = true }
@@ -124,11 +135,20 @@ fun AlbumScreen(
                 state = state,
                 hiddenView = source == Source.Hidden,
                 extra = listOfNotNull(
+                    personActions?.let { a -> ExtraAction("Not This Person", Icons.Outlined.RemoveCircleOutline, destructive = true) { a.reject(it); selection = null } },
                     albumActions?.let { a -> ExtraAction("Remove from Album", Icons.Outlined.RemoveCircleOutline, destructive = true) { a.remove(it); selection = null } },
                 ),
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottom + 16.dp, start = 16.dp, end = 16.dp),
             )
         }
+    }
+    if (naming && personActions != null) {
+        TextPromptDialog(
+            title = "Who Is This?",
+            message = "Using a name you've already given someone combines them into one person.",
+            initial = if (source.title == "Add Name") "" else source.title, confirm = "Save",
+            onConfirm = { personActions.name(it); naming = false }, onDismiss = { naming = false },
+        )
     }
     if (renaming && albumActions != null) {
         TextPromptDialog(

@@ -69,7 +69,11 @@ fun SearchScreen(state: LibraryState, query: String, onQueryChange: (String) -> 
                 Spacer(Modifier.height(12.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     val months = state.assets.map { Format.monthYear(it.dateTaken) }.distinct().takeLast(4).reversed()
-                    (MediaType.entries.map { it.title } + months).forEach { s ->
+                    val people = state.vision?.people.orEmpty().mapNotNull { it.name }.take(6)
+                    val places = remember(state.traits, state.geo) {
+                        state.assets.mapNotNull { state.placeOf(it)?.name }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(4).map { it.key }
+                    }
+                    (people + places + MediaType.entries.map { it.title } + months).forEach { s ->
                         Text(
                             s, style = IosType.subheadline.copy(fontWeight = FontWeight.Medium), color = c.blue,
                             modifier = Modifier.clip(RoundedCornerShape(50)).background(c.fill).clickable { onQueryChange(s) }

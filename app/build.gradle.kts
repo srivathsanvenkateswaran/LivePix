@@ -72,6 +72,9 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.11.1")
     implementation("androidx.media3:media3-transformer:1.11.1")
 
+    // Runs the bundled face and scene models on the device.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.31.1")
+
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
