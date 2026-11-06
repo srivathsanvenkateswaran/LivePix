@@ -48,8 +48,36 @@ the files and gives those controls back, inside an interface modelled on the iPh
   Screenshots, Animated, RAW and Recently Edited.
 - **Hidden** and **Recently Deleted**, locked with your fingerprint, face or screen lock. Delete moves
   items to Android's 30-day trash, from which they can be recovered.
-- Search, an info panel with camera, lens and exposure details, video playback with a scrubber,
-  share, save a copy, and light and dark mode.
+- **Duplicates** finds exact and near-exact copies. Merge keeps the best copy (Live or Portrait first,
+  then the highest resolution), gives it the others' favourite and albums, and sends the rest to
+  Recently Deleted.
+- Search by name, place, person, date, camera and what's in the picture ("beach", "dog", "pizza"); an
+  info panel with camera, lens, exposure and a map; video playback with a scrubber; share, save a
+  copy, and light and dark mode.
+
+### People & Pets
+- Faces are found and grouped into people on the phone. Name someone, combine two groups by giving
+  them the same name, and use **Not This Person** to correct a photo.
+- **Dogs** and **Cats** collections. These group by species; individual pets aren't told apart.
+- Stills only for now: faces in videos aren't indexed.
+- The first run looks through every photo. It works while LivePix is open, pauses in the background
+  and in battery saver, and picks up where it left off.
+
+### Memories and Slideshow
+- **Memories** are made from trips (named after where you went), this day in past years, named
+  people, recent months, past years and pets.
+- **Slideshow** plays any album, selection or memory with Ken Burns, Dissolve or Slide, at three
+  speeds, with music you pick from your own files. LivePix bundles no music.
+
+### Places
+- Every geotagged photo and video on a map that clusters as you zoom, plus a list of places.
+- The map is drawn from data inside the app, so it works offline and needs no network access. It
+  shows coastlines and city names, not roads or satellite imagery.
+
+### Adjust Date, Time and Location
+- Change them for one item or many; several items shift together and keep their spacing.
+- As in Photos, originals aren't rewritten. The new values drive sorting and display, go into any
+  exported copy, and can be reverted.
 
 ## Moving photos from an iPhone
 
@@ -87,7 +115,15 @@ Tests that need real iPhone files read them from `samples/`, which is git-ignore
 photos never enter the repository. Without samples, those tests are skipped. The expected names
 are in `ParsersTest.kt` and `DepthDecodeTest.kt`.
 
-`tools/heif_inspect.py` lists the items inside a HEIC (depth, mattes, rotation), and
+A signed App Bundle needs an upload key, supplied through the environment. Without these variables,
+release builds fall back to the debug key so they stay installable:
+
+```sh
+LIVEPIX_KEYSTORE=/path/to/upload.jks LIVEPIX_KEYSTORE_PASSWORD=... ./gradlew :app:bundleRelease
+```
+
+`tools/build_geo_assets.py` regenerates the map and city data from its Natural Earth and GeoNames
+sources. `tools/heif_inspect.py` lists the items inside a HEIC (depth, mattes, rotation), and
 `tools/makernote_cid.py` prints a still's Live Photo content identifier. Both run with the stock
 Python 3 on macOS or Linux.
 
@@ -101,7 +137,9 @@ Python 3 on macOS or Linux.
 | `media/AppleMetadata.kt` | Reads Live Photo content identifiers from the HEIC MakerNote and the MOV `keys` metadata. |
 | `media/LiveMedia.kt`, `FrameAligner.kt` | Frame extraction for key photos and Bounce; aligned frame averaging for Long Exposure. |
 | `media/Exporter.kt` | Edited JPEG export with the original Exif, and Motion Photo assembly (JPEG + MP4 + XMP). |
-| `data/` | MediaStore scanning, Live pairing, cached per-file metadata, and stored edits. |
+| `media/Vision.kt`, `FaceMath.kt` | Runs the face and scene models through ONNX Runtime. |
+| `data/People.kt`, `Duplicates.kt`, `Memories.kt`, `Geo.kt` | Face clustering, copy detection, memory building and offline place names. |
+| `data/` (the rest) | MediaStore scanning, Live pairing, cached per-file metadata, and stored edits. |
 | `ui/` | Jetpack Compose screens styled after iOS Photos. |
 
 ## Known limitations
@@ -110,6 +148,10 @@ Python 3 on macOS or Linux.
 - Apple's SF Pro font and true backdrop blur aren't available on Android, so the app uses the
   system font and translucent controls.
 - Edits made in Apple Photos (stored in separate `.AAE` files) are not read.
+- Face grouping was calibrated on the LFW research dataset. Real albums are harder (profile shots,
+  children, poor light), so expect to correct some groups.
+- Scene search and pet detection use a general ImageNet classifier, which knows 1,000 specific things
+  and will miss or misname some pictures.
 - Older iPhone "Most Compatible" JPEGs carry depth in a different form, which isn't supported yet.
 
 ## Reporting problems
@@ -120,7 +162,8 @@ model, how the photos were transferred, and, if you can share it, a sample file.
 
 ## Privacy
 
-LivePix works entirely on the device. It has no network access and collects no data. See
+LivePix works entirely on the device, including face recognition. It has no network access and
+collects no data. See
 [PRIVACY.md](PRIVACY.md).
 
 ## License

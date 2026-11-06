@@ -1,6 +1,6 @@
 # Privacy Policy
 
-_Last updated: 5 November 2026_
+_Last updated: 6 November 2026_
 
 LivePix is an open-source photo gallery for Android, developed by Srivathsan Venkateswaran.
 
@@ -11,15 +11,33 @@ only to display your library and to provide its features: playing Live Photos, r
 effects, and exporting edited copies. If you grant access to selected photos only, LivePix sees
 only those.
 
+LivePix also asks for access to the locations recorded in your photos and videos. It uses them
+to show items on the Places map, to name places, to build Memories, and to keep a photo's location
+in copies you export. If you decline, those features work without locations.
+
+## Analysis on your device
+
+To group people, recognise pets and scenes, and find duplicates, LivePix runs machine learning
+models over your photos. This includes face recognition: LivePix detects faces and computes a
+numeric representation of each one (a face embedding) to tell which photos show the same person.
+All of this happens on your device. Faces, embeddings and names are not sent anywhere, are not
+used for any purpose other than these features, and are not used to identify anyone beyond the
+names you type in yourself.
+
 ## What LivePix stores
 
 - **Edits** you make (for example, a chosen key photo or Portrait settings) are saved in the
   app's private storage on your device. Your original photos are never modified.
 - **Cached data**, such as thumbnails and which files contain Live or depth information, is kept
   in the app's private storage to make the app faster.
+- **Analysis results**, meaning face embeddings, the names you give people, picture fingerprints
+  and scene labels, are saved in the app's private storage until you uninstall LivePix or the
+  photo they came from is gone.
+- **Adjusted dates and locations, albums and hidden items** are saved in the same place.
 - **Copies you save or export** go to `Pictures/LivePix` on your device.
 
-Uninstalling LivePix removes its private storage. Copies saved to `Pictures/LivePix` remain until
+LivePix's private storage is excluded from Android's cloud backup. Uninstalling LivePix removes
+it. Copies saved to `Pictures/LivePix` remain until
 you delete them.
 
 ## What LivePix collects or shares

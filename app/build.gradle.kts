@@ -27,13 +27,25 @@ android {
         }
     }
 
+    signingConfigs {
+        // The Play upload key, from the environment; it never lives in the repository.
+        System.getenv("LIVEPIX_KEYSTORE")?.let { path ->
+            create("upload") {
+                storeFile = file(path)
+                storePassword = System.getenv("LIVEPIX_KEYSTORE_PASSWORD")
+                keyAlias = "upload"
+                keyPassword = System.getenv("LIVEPIX_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Personal build: signed with the debug key so it installs directly.
-            signingConfig = signingConfigs.getByName("debug")
+            // Without an upload key, sign with the debug key so the build still installs directly.
+            signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
         }
     }
 

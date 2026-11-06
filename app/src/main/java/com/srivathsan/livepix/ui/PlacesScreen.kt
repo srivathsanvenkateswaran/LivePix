@@ -285,6 +285,11 @@ private fun PlacesMap(state: LibraryState, located: List<Pair<Asset, GeoPoint>>,
                 }
             }
         }
+        // GeoNames' licence asks for credit where its names appear.
+        Text(
+            "Place names: GeoNames (CC BY 4.0)", style = IosType.caption2, color = colors.text,
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 12.dp, bottom = 34.dp),
+        )
         if (located.isEmpty() && state.loaded) {
             Text(
                 if (state.scanning) "Looking for photo locations…" else "No photos with a location yet",

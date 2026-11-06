@@ -9,3 +9,5 @@ local.properties
 .kotlin/
 /app/.cxx/
 /dist/
+*.jks
+*.keystore
