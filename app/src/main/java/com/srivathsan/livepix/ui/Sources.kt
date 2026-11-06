@@ -46,6 +46,8 @@ sealed interface Source {
     data class Type(val type: MediaType) : Source { override val title = type.title }
     data class Search(val query: String) : Source { override val title = query }
     data object Hidden : Source { override val title = "Hidden" }
+    /** A fixed set of items: a place on the map, a memory, a person. */
+    data class Keys(override val title: String, val keys: List<String>) : Source
 
     fun assets(state: LibraryState): List<Asset> = when (this) {
         Library -> state.assets
@@ -55,6 +57,7 @@ sealed interface Source {
         is Type -> state.assets.filter { matches(type, it, state) }
         is Search -> search(state, query)
         Hidden -> state.allAssets.filter { it.key in state.hidden }
+        is Keys -> keys.toSet().let { set -> state.assets.filter { it.key in set } }
     }
 
     companion object {
@@ -87,7 +90,8 @@ sealed interface Source {
             return state.assets.filter { a ->
                 a.name.lowercase().contains(q) || a.folder.lowercase().contains(q) ||
                     Format.monthYear(a.dateTaken).lowercase().contains(q) ||
-                    (state.traitsOf(a)?.model?.lowercase()?.contains(q) == true)
+                    (state.traitsOf(a)?.model?.lowercase()?.contains(q) == true) ||
+                    state.placeOf(a)?.fullName?.lowercase()?.contains(q) == true
             }
         }
     }

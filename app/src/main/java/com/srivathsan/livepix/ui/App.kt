@@ -66,6 +66,7 @@ sealed interface Route {
     data class Viewer(val source: Source, val startKey: String) : Route
     data class Edit(val key: String, val source: Source) : Route
     data object Trash : Route
+    data object Places : Route
 }
 
 private enum class Tab { LIBRARY, COLLECTIONS, SEARCH }
@@ -273,6 +274,7 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
                                 onUtility = { u ->
                                     stack.add(if (u == Utility.RECENTLY_DELETED) Route.Trash else Route.Collection(Source.Hidden))
                                 },
+                                onPlaces = { stack.add(Route.Places) },
                             )
                             Tab.SEARCH -> SearchScreen(state, query, { query = it }) { a, s -> stack.add(Route.Viewer(s, a.key)) }
                         }
@@ -323,6 +325,7 @@ fun LivePixApp(vm: GalleryViewModel, externalUri: Uri?) {
                             onDeleteForever = { launch(vm.deleteRequest(it)) },
                         )
                     }
+                    Route.Places -> PlacesScreen(state, onBack = { stack.removeLastOrNull() }, onOpenSource = { stack.add(Route.Collection(it)) })
                     is Route.Viewer -> {
                         val assets = remember(state, route.source) { route.source.assets(state) }
                         ViewerScreen(

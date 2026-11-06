@@ -55,6 +55,9 @@ data class LibraryState(
         return (t ?: Traits()).copy(lat = p?.lat, lng = p?.lng, locationEdited = true)
     }
 
+    /** Everything with a location, oldest first. */
+    fun located(): List<Pair<Asset, GeoPoint>> = assets.mapNotNull { a -> traitsOf(a)?.point?.let { a to it } }
+
     /** The city nearest where the item was taken. */
     fun placeOf(a: Asset): City? = traitsOf(a)?.point?.let { geo?.nearest(it.lat, it.lng) }
 

@@ -94,6 +94,10 @@ fun InfoSheet(asset: Asset, traits: Traits?, edit: AssetEdit, place: City?, onDi
                     }
                 }
             }
+            traits?.point?.let { point ->
+                Spacer(Modifier.height(14.dp))
+                MiniMap(listOf(point), Modifier.fillMaxWidth().height(130.dp).clip(RoundedCornerShape(14.dp)))
+            }
             Spacer(Modifier.height(14.dp))
             InfoRow("File", asset.name)
             InfoRow("Album", asset.folder)

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -59,6 +60,7 @@ fun CollectionsScreen(
     onOpenSource: (Source) -> Unit,
     onNewAlbum: () -> Unit,
     onUtility: (Utility) -> Unit,
+    onPlaces: () -> Unit,
 ) {
     val c = Ios.colors
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -77,6 +79,18 @@ fun CollectionsScreen(
                     items(pinned) { type ->
                         CollectionCard(type.title, typeCounts.getValue(type), size = 160.dp) { onOpenSource(Source.Type(type)) }
                     }
+                }
+            }
+
+            item { SectionHeader("Places", onClick = onPlaces) }
+            item {
+                val points = remember(state) { state.located().map { it.second } }
+                Box(Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(170.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onPlaces)) {
+                    MiniMap(points, Modifier.fillMaxSize(), maxScale = 3_000f)
+                    Text(
+                        Format.count(points.size, "Item"), style = IosType.footnote.copy(fontWeight = FontWeight.SemiBold), color = c.label,
+                        modifier = Modifier.align(Alignment.BottomStart).padding(10.dp),
+                    )
                 }
             }
 
@@ -153,9 +167,9 @@ private fun ListRow(icon: ImageVector, title: String, value: String?, trailingIc
 }
 
 @Composable
-private fun SectionHeader(title: String, chevron: Boolean = true) {
+private fun SectionHeader(title: String, chevron: Boolean = true, onClick: (() -> Unit)? = null) {
     val c = Ios.colors
-    Row(Modifier.padding(start = 18.dp, end = 16.dp, top = 22.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row((if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(start = 18.dp, end = 16.dp, top = 22.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = IosType.title2, color = c.label)
         if (chevron) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = c.secondaryLabel, modifier = Modifier.size(26.dp))
     }
